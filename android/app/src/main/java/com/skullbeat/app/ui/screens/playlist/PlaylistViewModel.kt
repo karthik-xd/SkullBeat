@@ -51,8 +51,8 @@ class PlaylistViewModel @Inject constructor(
         playerManager.addToUserQueue(track)
     }
 
-    fun removeFromQueue(track: Track) {
-        playerManager.removeTrackFromUserQueue(track)
+    fun removeFromQueue(track: Track): Boolean {
+        return playerManager.removeTrackFromUserQueue(track)
     }
 
     fun playTrack(track: Track) {

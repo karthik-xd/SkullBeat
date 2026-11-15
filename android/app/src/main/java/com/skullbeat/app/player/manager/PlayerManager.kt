@@ -345,15 +345,18 @@ class PlayerManager @Inject constructor(
         }
     }
 
-    fun removeTrackFromUserQueue(track: Track) {
+    fun removeTrackFromUserQueue(track: Track): Boolean {
+        var removed = false
         _playbackState.update { state ->
             val list = state.userQueue.toMutableList()
             val idx = list.indexOfLast { it.videoId == track.videoId }
             if (idx != -1) {
                 list.removeAt(idx)
+                removed = true
             }
             state.copy(userQueue = list)
         }
+        return removed
     }
 
     fun removeLastFromUserQueue() {

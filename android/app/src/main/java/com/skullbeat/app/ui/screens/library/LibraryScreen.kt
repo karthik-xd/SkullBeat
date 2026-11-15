@@ -439,8 +439,9 @@ fun LibraryScreen(
                                         Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
                                     }
                                     SwipeAction.REMOVE_FROM_QUEUE -> {
-                                        viewModel.removeFromQueue(track)
-                                        Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                        val removed = viewModel.removeFromQueue(track)
+                                        val msg = if (removed) "Removed from queue: ${track.title}" else "Not in queue: ${track.title}"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                     }
                                     else -> {}
                                 }
@@ -572,7 +573,7 @@ private fun LibraryTrackRow(
         Spacer(modifier = Modifier.width(8.dp))
 
         Text(
-            text = track.durationFormatted.ifBlank { "3:42" },
+            text = track.durationFormatted.ifBlank { "" },
             style = MaterialTheme.typography.bodySmall.copy(
                 fontSize = 13.sp,
                 color = TextMuted

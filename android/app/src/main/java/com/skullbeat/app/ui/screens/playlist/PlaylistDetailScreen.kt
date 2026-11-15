@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,8 +48,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,6 +111,15 @@ fun PlaylistDetailScreen(
     val favIds = remember(favorites) { favorites.map { it.videoId }.toSet() }
     var showAddSongsSheet by remember { mutableStateOf(false) }
     var showCoverOptionsSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // Scroll to first song when tracks are added or updated
+    LaunchedEffect(tracks.size) {
+        if (tracks.isNotEmpty()) {
+            listState.animateScrollToItem(0)
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -206,9 +219,7 @@ fun PlaylistDetailScreen(
                 // Delete Playlist button
                 IconButton(
                     onClick = {
-                        viewModel.deletePlaylist {
-                            onBack()
-                        }
+                        showDeleteConfirmDialog = true
                     },
                     modifier = Modifier
                         .size(36.dp)
@@ -356,6 +367,7 @@ fun PlaylistDetailScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -390,8 +402,9 @@ fun PlaylistDetailScreen(
                                     Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
                                 }
                                 com.skullbeat.app.ui.components.SwipeAction.REMOVE_FROM_QUEUE -> {
-                                    viewModel.removeFromQueue(track)
-                                    Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                    val removed = viewModel.removeFromQueue(track)
+                                    val msg = if (removed) "Removed from queue: ${track.title}" else "Not in queue: ${track.title}"
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
                                 com.skullbeat.app.ui.components.SwipeAction.PLAY_NEXT -> {
                                     viewModel.addToQueue(track)
@@ -734,5 +747,43 @@ fun PlaylistDetailScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            containerColor = SurfaceDark,
+            title = {
+                Text(
+                    text = "Delete Playlist?",
+                    color = TextBone,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete \"${playlist?.name ?: "this playlist"}\"? This cannot be undone.",
+                    color = TextMuted
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        viewModel.deletePlaylist {
+                            onBack()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = HeartRed)
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            }
+        )
     }
 }

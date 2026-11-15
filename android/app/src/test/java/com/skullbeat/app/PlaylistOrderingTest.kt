@@ -34,9 +34,10 @@ class PlaylistOrderingTest {
         }
 
         fun addTracksToPlaylist(playlistId: Long, videoIds: List<String>) {
-            val startPos = (getMaxPosition(playlistId) ?: -1) + 1
+            if (videoIds.isEmpty()) return
+            val baseMin = (getMinPosition(playlistId) ?: 1) - videoIds.size
             videoIds.forEachIndexed { index, vid ->
-                tracks.add(PlaylistTrack(playlistId = playlistId, videoId = vid, position = startPos + index))
+                tracks.add(PlaylistTrack(playlistId = playlistId, videoId = vid, position = baseMin + index))
             }
         }
 
@@ -89,8 +90,6 @@ class PlaylistOrderingTest {
 
         val ordered = dao.getPlaylistVideoIdsOrdered(playlistId)
         assertEquals(albumTracks, ordered)
-        assertEquals(0, dao.tracks.first().position)
-        assertEquals(9, dao.tracks.last().position)
     }
 
     @Test

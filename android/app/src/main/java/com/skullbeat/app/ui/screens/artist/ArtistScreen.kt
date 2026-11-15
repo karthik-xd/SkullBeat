@@ -175,8 +175,9 @@ fun ArtistScreen(
                                     Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
                                 }
                                 com.skullbeat.app.ui.components.SwipeAction.REMOVE_FROM_QUEUE -> {
-                                    viewModel.removeFromQueue(track)
-                                    Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                    val removed = viewModel.removeFromQueue(track)
+                                    val msg = if (removed) "Removed from queue: ${track.title}" else "Not in queue: ${track.title}"
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
                                 com.skullbeat.app.ui.components.SwipeAction.PLAY_NEXT -> {
                                     viewModel.addToQueue(track)

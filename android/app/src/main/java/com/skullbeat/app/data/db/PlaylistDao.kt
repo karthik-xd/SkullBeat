@@ -68,9 +68,10 @@ interface PlaylistDao {
 
     @Transaction
     suspend fun addTracksToPlaylist(playlistId: Long, videoIds: List<String>) {
-        val startPos = (getMaxPosition(playlistId) ?: -1) + 1
+        if (videoIds.isEmpty()) return
+        val baseMin = (getMinPosition(playlistId) ?: 1) - videoIds.size
         val playlistTracks = videoIds.mapIndexed { index, videoId ->
-            PlaylistTrack(playlistId = playlistId, videoId = videoId, position = startPos + index)
+            PlaylistTrack(playlistId = playlistId, videoId = videoId, position = baseMin + index)
         }
         insertPlaylistTracks(playlistTracks)
     }

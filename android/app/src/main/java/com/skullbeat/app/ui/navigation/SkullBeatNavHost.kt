@@ -306,7 +306,7 @@ fun SkullBeatNavHost(
                                 if (added) {
                                     Toast.makeText(context, "Added to ${pl.name}", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Already in ${pl.name}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Already in ${pl.name} (moved to top)", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         } catch (e: Exception) {
