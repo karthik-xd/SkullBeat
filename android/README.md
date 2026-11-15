@@ -34,6 +34,7 @@ android/
 │       │   │   ├── MainActivity.kt
 │       │   │   ├── SkullBeatApp.kt
 │       │   │   ├── data/
+│       │   │   │   ├── cache/         # LruAssetCache (250MB thumbnails) & MediaAssetCacheManager (1GB audio)
 │       │   │   │   ├── db/            # Room database & DAOs (Tracks, Favorites, Playlists, History, Queue)
 │       │   │   │   ├── extractor/     # YouTubeExtractor & StreamCache
 │       │   │   │   ├── network/       # OkHttpDownloader & SpotifyScraper

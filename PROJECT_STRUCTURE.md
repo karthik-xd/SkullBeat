@@ -101,6 +101,10 @@ android/app/src/main/
 │   │       └── TimeUtils.kt      # Formats mm:ss, parses ISO durations, and computes display timestamps
 │   │
 │   ├── data/                 # [PARENT: Concrete Data Sources & Persistence]
+│   │   ├── cache/            # Local Asset Storage & Eviction
+│   │   │   ├── LruAssetCache.kt          # Generic disk cache enforcing fixed capacity limits with atomic writes & item-by-item LRU eviction
+│   │   │   └── MediaAssetCacheManager.kt # Coordinates 250MB thumbnail cache and 1GB audio media playback cache
+│   │   │
 │   │   ├── db/               # Room SQLite Database & DAOs
 │   │   │   ├── AppDatabase.kt    # Room database declaration (entities, version, migrations)
 │   │   │   ├── TrackDao.kt       # Track caching queries (insertTrack, getTrack, getAllTracksFlow)
