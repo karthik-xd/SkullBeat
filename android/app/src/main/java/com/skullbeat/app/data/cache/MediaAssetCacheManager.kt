@@ -46,6 +46,8 @@ class MediaAssetCacheManager(
 
     fun cacheThumbnail(videoId: String, bytes: ByteArray): File = thumbnailCache.put(videoId, bytes)
 
+    fun cacheThumbnailStream(videoId: String, stream: InputStream): File = thumbnailCache.putStream(videoId, stream)
+
     fun getCachedPlaybackAsset(videoId: String): File? = playbackAssetCache.get(videoId)
 
     fun cachePlaybackAsset(videoId: String, bytes: ByteArray): File = playbackAssetCache.put(videoId, bytes)
@@ -55,4 +57,23 @@ class MediaAssetCacheManager(
     fun isThumbnailCached(videoId: String): Boolean = thumbnailCache.contains(videoId)
 
     fun isPlaybackAssetCached(videoId: String): Boolean = playbackAssetCache.contains(videoId)
+
+    fun removeThumbnail(videoId: String): Boolean = thumbnailCache.remove(videoId)
+
+    fun removePlaybackAsset(videoId: String): Boolean = playbackAssetCache.remove(videoId)
+
+    fun clearThumbnails() = thumbnailCache.clear()
+
+    fun clearPlaybackAssets() = playbackAssetCache.clear()
+
+    fun clearAll() {
+        thumbnailCache.clear()
+        playbackAssetCache.clear()
+    }
+
+    val currentThumbnailCacheSize: Long
+        get() = thumbnailCache.currentSize
+
+    val currentPlaybackAssetCacheSize: Long
+        get() = playbackAssetCache.currentSize
 }

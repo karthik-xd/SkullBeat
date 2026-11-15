@@ -4,6 +4,7 @@ import com.skullbeat.app.data.cache.LruAssetCache
 import com.skullbeat.app.data.cache.MediaAssetCacheManager
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -13,6 +14,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class LruAssetCacheTest {
 
@@ -315,5 +319,186 @@ class LruAssetCacheTest {
         manager.cachePlaybackAssetStream("stream_2", ByteArrayInputStream(streamData2))
         assertTrue(manager.isPlaybackAssetCached("stream_2"))
         assertFalse("stream_1 should be evicted to enforce 500 byte limit", manager.isPlaybackAssetCached("stream_1"))
+    }
+
+    @Test
+    fun keySafety_longKeysExceedingFilesystemLimits_handledWithoutCrashing() {
+        val cacheDir = tempFolder.newFolder("long_key_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        // URL key length 350 chars (typical Google/YouTube CDN URL)
+        val longKey = "https://lh3.googleusercontent.com/ytc/AIdro_k" + "x".repeat(300) + "?expire=1700000000&signature=test"
+        val data = "sample_data".toByteArray()
+
+        val savedFile = cache.put(longKey, data)
+        assertTrue(savedFile.exists())
+        assertTrue("Saved filename must be within filesystem 255-char limit", savedFile.name.length <= 255)
+
+        val retrieved = cache.get(longKey)
+        assertNotNull(retrieved)
+        assertArrayEquals(data, retrieved!!.readBytes())
+        assertTrue(cache.contains(longKey))
+    }
+
+    @Test
+    fun keySafety_pathTraversalAttempts_confinedToCacheDirectory() {
+        val cacheDir = tempFolder.newFolder("traversal_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        val maliciousKeys = listOf(
+            "../outside.bin",
+            "..",
+            ".",
+            "../../etc/passwd",
+            "nested/dir/asset",
+            "nested\\win\\asset"
+        )
+
+        for ((idx, maliciousKey) in maliciousKeys.withIndex()) {
+            val data = "safe_content_$idx".toByteArray()
+            val file = cache.put(maliciousKey, data)
+
+            // File must be strictly inside cacheDir, never in parent or outside
+            assertEquals(cacheDir.canonicalPath, file.parentFile?.canonicalPath)
+            assertTrue(file.exists())
+            assertArrayEquals(data, cache.get(maliciousKey)?.readBytes())
+        }
+    }
+
+    @Test
+    fun keySafety_distinctKeysWithSpecialChars_doNotCollide() {
+        val cacheDir = tempFolder.newFolder("collision_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        val key1 = "track:song#1"
+        val key2 = "track_song_1"
+        val data1 = "first_track".toByteArray()
+        val data2 = "second_track".toByteArray()
+
+        val file1 = cache.put(key1, data1)
+        val file2 = cache.put(key2, data2)
+
+        // Must NOT overwrite each other
+        assertNotEquals(file1.name, file2.name)
+        assertEquals(2, cache.entryCount)
+        assertEquals((data1.size + data2.size).toLong(), cache.currentSize)
+
+        assertArrayEquals(data1, cache.get(key1)?.readBytes())
+        assertArrayEquals(data2, cache.get(key2)?.readBytes())
+    }
+
+    @Test
+    fun lruPrecision_deterministicTieBreaking_whenTimestampsAreIdentical() {
+        val cacheDir = tempFolder.newFolder("lru_precision_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        // Put 3 items with identical lastAccessedMs timestamp
+        val fixedTimestamp = 5000L
+        cache.put("item_A", ByteArray(400) { 1 })
+        cache.touch("item_A", fixedTimestamp)
+
+        cache.put("item_B", ByteArray(400) { 2 })
+        cache.touch("item_B", fixedTimestamp)
+
+        // Both item_A and item_B have lastAccessedMs = 5000L.
+        // item_A was added before item_B (accessSeq A < B).
+        // Adding item_C (400 bytes) pushes total to 1200 > 1000.
+        // Item_A must be evicted first based on accessSeq.
+        cache.put("item_C", ByteArray(400) { 3 })
+        cache.touch("item_C", 6000L)
+
+        assertTrue(cache.currentSize <= 1000L)
+        assertFalse("Item A should be evicted first", cache.contains("item_A"))
+        assertTrue("Item B should remain", cache.contains("item_B"))
+        assertTrue("Item C should remain", cache.contains("item_C"))
+    }
+
+    @Test
+    fun concurrency_multithreadedPutsAndGets_threadSafeWithoutCorruption() {
+        val cacheDir = tempFolder.newFolder("concurrent_cache")
+        val maxLimit = 2000L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = maxLimit)
+
+        val threadCount = 8
+        val iterationsPerThread = 25
+        val executor = Executors.newFixedThreadPool(threadCount)
+        val errorCount = AtomicInteger(0)
+
+        for (t in 0 until threadCount) {
+            executor.submit {
+                try {
+                    for (i in 0 until iterationsPerThread) {
+                        val key = "item_${t}_${i % 5}"
+                        val data = ByteArray(100) { (t + i).toByte() }
+                        cache.put(key, data)
+                        val file = cache.get(key)
+                        if (file != null && file.exists()) {
+                            file.readBytes()
+                        }
+                        cache.touch(key)
+                    }
+                } catch (e: Throwable) {
+                    e.printStackTrace()
+                    errorCount.incrementAndGet()
+                }
+            }
+        }
+
+        executor.shutdown()
+        assertTrue(executor.awaitTermination(15, TimeUnit.SECONDS))
+        assertEquals("No concurrency errors permitted", 0, errorCount.get())
+        assertTrue("Storage limit must never be exceeded under concurrent load", cache.currentSize <= maxLimit)
+    }
+
+    @Test
+    fun largeItemExceedingEntireCapacity_enforcesLimitGracefully() {
+        val cacheDir = tempFolder.newFolder("huge_item_cache")
+        val maxLimit = 500L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = maxLimit)
+
+        // Item size 700 bytes > 500 maxSizeBytes
+        val hugeData = ByteArray(700) { 9 }
+        cache.put("huge_track", hugeData)
+
+        // Total size must remain within limit (0 bytes, entry evicted)
+        assertTrue(cache.currentSize <= maxLimit)
+        assertEquals(0L, cache.currentSize)
+        assertEquals(0, cache.entryCount)
+        assertFalse(cache.contains("huge_track"))
+    }
+
+    @Test
+    fun mediaAssetCacheManager_clearAndRemove_operations() {
+        val thumbDir = tempFolder.newFolder("mgr_ops_thumbs")
+        val playbackDir = tempFolder.newFolder("mgr_ops_playback")
+
+        val manager = MediaAssetCacheManager(
+            thumbnailDir = thumbDir,
+            playbackDir = playbackDir,
+            thumbnailLimit = 1000L,
+            playbackLimit = 1000L
+        )
+
+        manager.cacheThumbnail("thumb1", ByteArray(100) { 1 })
+        manager.cacheThumbnail("thumb2", ByteArray(200) { 2 })
+        manager.cachePlaybackAsset("audio1", ByteArray(300) { 3 })
+
+        assertEquals(300L, manager.currentThumbnailCacheSize)
+        assertEquals(300L, manager.currentPlaybackAssetCacheSize)
+
+        // Remove single thumbnail
+        assertTrue(manager.removeThumbnail("thumb1"))
+        assertFalse(manager.isThumbnailCached("thumb1"))
+        assertEquals(200L, manager.currentThumbnailCacheSize)
+
+        // Clear all thumbnails
+        manager.clearThumbnails()
+        assertEquals(0L, manager.currentThumbnailCacheSize)
+        assertTrue(manager.isPlaybackAssetCached("audio1"))
+
+        // Clear all
+        manager.clearAll()
+        assertEquals(0L, manager.currentPlaybackAssetCacheSize)
+        assertFalse(manager.isPlaybackAssetCached("audio1"))
     }
 }
