@@ -49,6 +49,7 @@ fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val updates = listOf(
+        "Bidirectional Swipe in Playlist" to "Slide right (Electric Blue to Cyan) to add to queue; slide left (Heart Red to Coral) to remove from queue with instant tactile feedback.",
         "Brand-Matched App Launcher Icon" to "Updated launcher icon with the official theme electric-blue gradient and bone-white skull symbol, plus adaptive and Material You themed icon support.",
         "Fixed Fast-Scrolling Playlist Crash" to "Replaced non-unique item keys with composite indexed keys, eliminated subcomposition drag delays, and isolated progress ticker recompositions.",
         "Smooth 60fps Thumbnail Caching" to "Coil image loader configured with 25% heap memory cache, 50MB disk cache, and 144x144 thumbnail downsampling for silky-smooth flings.",
@@ -102,7 +103,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.5 (Build 8)",
+                                text = "Version 1.2.6 (Build 9)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ElectricBlue
                             )
