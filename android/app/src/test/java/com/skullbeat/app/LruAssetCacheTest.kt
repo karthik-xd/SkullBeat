@@ -501,4 +501,163 @@ class LruAssetCacheTest {
         assertEquals(0L, manager.currentPlaybackAssetCacheSize)
         assertFalse(manager.isPlaybackAssetCached("audio1"))
     }
+
+    @Test
+    fun keySafety_keysContainingDotTmp_notPurgedAsOrphanedTempFilesOnScan() {
+        val cacheDir = tempFolder.newFolder("tmp_name_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 2000L)
+
+        // Valid user keys that contain '.tmp' in filename or extension
+        val trackData = "track_audio_bytes".toByteArray()
+        val songData = "song_binary_bytes".toByteArray()
+        cache.put("track.tmp", trackData)
+        cache.put("song.tmp.bin", songData)
+
+        // Also simulate real abandoned temp files from interrupted writes
+        val legacyTmpFile = File(cacheDir, "real_asset.bin.tmp_987654321").apply {
+            writeBytes("abandoned_old_temp".toByteArray())
+        }
+        val modernTmpFile = File(cacheDir, "new_asset.bin.lru_tmp_12345678-abcd").apply {
+            writeBytes("abandoned_uuid_temp".toByteArray())
+        }
+        assertTrue(legacyTmpFile.exists())
+        assertTrue(modernTmpFile.exists())
+
+        // Re-initialize cache (simulating cold process restart)
+        val reloadedCache = LruAssetCache(cacheDir, maxSizeBytes = 2000L)
+
+        // Orphaned temporary files MUST be cleaned up
+        assertFalse("Legacy .tmp_ timestamp file must be purged", legacyTmpFile.exists())
+        assertFalse("Modern .lru_tmp_ file must be purged", modernTmpFile.exists())
+
+        // Valid user assets MUST NOT be purged as temporary files
+        assertTrue("track.tmp must be preserved across scan", reloadedCache.contains("track.tmp"))
+        assertTrue("song.tmp.bin must be preserved across scan", reloadedCache.contains("song.tmp.bin"))
+        assertArrayEquals(trackData, reloadedCache.get("track.tmp")?.readBytes())
+        assertArrayEquals(songData, reloadedCache.get("song.tmp.bin")?.readBytes())
+    }
+
+    @Test
+    fun keySafety_dotsOnlyAndReservedNames_handledWithoutCrashing() {
+        val cacheDir = tempFolder.newFolder("reserved_dots_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 5000L)
+
+        val problematicKeys = listOf(
+            "...",
+            "....",
+            ".hidden",
+            "song.",
+            "con",
+            "prn",
+            "aux",
+            "nul",
+            "com1",
+            "lpt1"
+        )
+
+        for ((i, key) in problematicKeys.withIndex()) {
+            val data = "payload_$i".toByteArray()
+            val file = cache.put(key, data)
+            assertTrue("File for key '$key' must exist", file.exists())
+            assertTrue("Cache must contain key '$key'", cache.contains(key))
+            assertArrayEquals("Payload for '$key' must match", data, cache.get(key)?.readBytes())
+        }
+
+        // Verify trailing dot does not collide with base key
+        val dotKey = "song."
+        val baseKey = "song"
+        val dotData = "dot_payload".toByteArray()
+        val baseData = "base_payload".toByteArray()
+
+        val dotFile = cache.put(dotKey, dotData)
+        val baseFile = cache.put(baseKey, baseData)
+
+        assertNotEquals("Files for 'song.' and 'song' must not collide", dotFile.name, baseFile.name)
+        assertArrayEquals(dotData, cache.get(dotKey)?.readBytes())
+        assertArrayEquals(baseData, cache.get(baseKey)?.readBytes())
+    }
+
+    @Test
+    fun largeItemExceedingCapacity_doesNotEvictExistingValidItems() {
+        val cacheDir = tempFolder.newFolder("oversized_item_cache")
+        val maxLimit = 1000L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = maxLimit)
+
+        val data1 = ByteArray(300) { 1 }
+        val data2 = ByteArray(300) { 2 }
+        val file1 = cache.put("track_1", data1)
+        val file2 = cache.put("track_2", data2)
+        assertEquals(600L, cache.currentSize)
+        assertEquals(2, cache.entryCount)
+
+        // Attempt to store item that exceeds maxSizeBytes (1500 > 1000)
+        val hugeData = ByteArray(1500) { 9 }
+        val hugeFile = cache.put("huge_track", hugeData)
+
+        // The huge item cannot fit in cache
+        assertFalse(cache.contains("huge_track"))
+        assertFalse(hugeFile.exists())
+
+        // Existing valid items MUST NOT be evicted
+        assertTrue("track_1 must remain cached", file1.exists())
+        assertTrue("track_2 must remain cached", file2.exists())
+        assertTrue(cache.contains("track_1"))
+        assertTrue(cache.contains("track_2"))
+        assertEquals(600L, cache.currentSize)
+        assertEquals(2, cache.entryCount)
+    }
+
+    @Test
+    fun externalCacheDirDeletion_recreatesDirectoryWithoutCrashing() {
+        val cacheDir = tempFolder.newFolder("dir_deletion_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        val initialFile = cache.put("track_first", "first_data".toByteArray())
+        assertTrue(initialFile.exists())
+
+        // Simulate external deletion of cache directory (e.g. OS disk clean)
+        cacheDir.deleteRecursively()
+        assertFalse(cacheDir.exists())
+
+        // Subsequent put must recreate directory and succeed without throwing FileNotFoundException
+        val secondData = "second_data".toByteArray()
+        val secondFile = cache.put("track_second", secondData)
+        assertTrue(cacheDir.exists())
+        assertTrue(secondFile.exists())
+        assertArrayEquals(secondData, cache.get("track_second")?.readBytes())
+    }
+
+    @Test
+    fun mediaAssetCacheManager_touchAndLimits_protectsLru() {
+        val thumbDir = tempFolder.newFolder("mgr_touch_thumbs")
+        val playbackDir = tempFolder.newFolder("mgr_touch_playback")
+
+        val manager = MediaAssetCacheManager(
+            thumbnailDir = thumbDir,
+            playbackDir = playbackDir,
+            thumbnailLimit = 200L,
+            playbackLimit = 500L
+        )
+
+        assertEquals(200L, manager.maxThumbnailCacheSize)
+        assertEquals(500L, manager.maxPlaybackAssetCacheSize)
+
+        manager.cacheThumbnail("thumb_A", ByteArray(100) { 1 })
+        manager.touchThumbnail("thumb_A", 1000L)
+
+        manager.cacheThumbnail("thumb_B", ByteArray(100) { 2 })
+        manager.touchThumbnail("thumb_B", 2000L)
+
+        // Replay thumb A -> touch at 3000L
+        manager.touchThumbnail("thumb_A", 3000L)
+
+        // Add thumb C (100B) -> pushes total to 300 > 200.
+        // thumb B (t=2000) should be evicted; thumb A (t=3000) protected
+        manager.cacheThumbnail("thumb_C", ByteArray(100) { 3 })
+        manager.touchThumbnail("thumb_C", 4000L)
+
+        assertTrue("thumb_A was touched on replay and must stay cached", manager.isThumbnailCached("thumb_A"))
+        assertFalse("thumb_B was LRU and must be evicted", manager.isThumbnailCached("thumb_B"))
+        assertTrue("thumb_C must be cached", manager.isThumbnailCached("thumb_C"))
+    }
 }

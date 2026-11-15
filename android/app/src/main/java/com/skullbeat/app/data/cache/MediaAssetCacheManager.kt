@@ -23,11 +23,11 @@ class MediaAssetCacheManager(
     @Inject
     constructor(@ApplicationContext context: Context) : this(
         thumbnailCache = LruAssetCache(
-            cacheDir = File(context.cacheDir, "thumbnail_cache"),
+            cacheDir = File(context.cacheDir, "media_thumbnail_cache"),
             maxSizeBytes = 250L * 1024 * 1024 // 250MB
         ),
         playbackAssetCache = LruAssetCache(
-            cacheDir = File(context.cacheDir, "playback_assets"),
+            cacheDir = File(context.cacheDir, "media_playback_cache"),
             maxSizeBytes = 1024L * 1024 * 1024 // 1GB
         )
     )
@@ -58,6 +58,14 @@ class MediaAssetCacheManager(
 
     fun isPlaybackAssetCached(videoId: String): Boolean = playbackAssetCache.contains(videoId)
 
+    fun touchThumbnail(videoId: String, timestampMs: Long = System.currentTimeMillis()) {
+        thumbnailCache.touch(videoId, timestampMs)
+    }
+
+    fun touchPlaybackAsset(videoId: String, timestampMs: Long = System.currentTimeMillis()) {
+        playbackAssetCache.touch(videoId, timestampMs)
+    }
+
     fun removeThumbnail(videoId: String): Boolean = thumbnailCache.remove(videoId)
 
     fun removePlaybackAsset(videoId: String): Boolean = playbackAssetCache.remove(videoId)
@@ -76,4 +84,10 @@ class MediaAssetCacheManager(
 
     val currentPlaybackAssetCacheSize: Long
         get() = playbackAssetCache.currentSize
+
+    val maxThumbnailCacheSize: Long
+        get() = thumbnailCache.maxSizeBytes
+
+    val maxPlaybackAssetCacheSize: Long
+        get() = playbackAssetCache.maxSizeBytes
 }
