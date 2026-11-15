@@ -29,6 +29,7 @@ import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import coil.ImageLoader
+import coil.imageLoader
 import coil.request.ImageRequest
 import com.skullbeat.app.MainActivity
 import com.skullbeat.app.R
@@ -313,7 +314,7 @@ class PlaybackService : MediaSessionService() {
         val loaded = withContext(Dispatchers.IO) {
             try {
                 if (track.thumbnailUrl.isNotBlank()) {
-                    val loader = ImageLoader(this@PlaybackService)
+                    val loader = this@PlaybackService.imageLoader
                     val request = ImageRequest.Builder(this@PlaybackService)
                         .data(track.thumbnailUrl)
                         .allowHardware(false)

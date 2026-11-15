@@ -86,6 +86,17 @@ class PlayerManager @Inject constructor(
         val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(playbackCache)
             .setUpstreamDataSourceFactory(resolvingFactory)
+            .setCacheKeyFactory { dataSpec ->
+                dataSpec.key ?: run {
+                    val uri = dataSpec.uri
+                    if (uri.scheme == "skullbeat") {
+                        val videoId = uri.getQueryParameter("id") ?: uri.authority.orEmpty()
+                        "audio_$videoId"
+                    } else {
+                        dataSpec.uri.toString()
+                    }
+                }
+            }
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(cacheDataSourceFactory)
@@ -647,6 +658,7 @@ class PlayerManager @Inject constructor(
         return MediaItem.Builder()
             .setMediaId(track.videoId)
             .setUri(Uri.parse("skullbeat://audio?id=${track.videoId}"))
+            .setCustomCacheKey("audio_${track.videoId}")
             .setMediaMetadata(metadataBuilder.build())
             .build()
     }

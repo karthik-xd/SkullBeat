@@ -1,6 +1,7 @@
 package com.skullbeat.app
 
 import com.skullbeat.app.data.cache.LruAssetCache
+import com.skullbeat.app.data.cache.MediaAssetCacheManager
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -231,5 +232,88 @@ class LruAssetCacheTest {
         // Audio / playback asset limit: 1GB
         val expectedAudioLimit = 1024L * 1024 * 1024L
         assertEquals(1073741824L, expectedAudioLimit)
+    }
+
+    @Test
+    fun scanExistingFiles_purgesOrphanedTmpFiles() {
+        val cacheDir = tempFolder.newFolder("tmp_clean_cache")
+        val normalFile = File(cacheDir, "valid_asset.bin").apply {
+            writeBytes(ByteArray(100) { 1 })
+            setLastModified(1000L)
+        }
+        val orphanedTmpFile = File(cacheDir, "valid_asset.bin.tmp_123456789").apply {
+            writeBytes(ByteArray(500) { 2 })
+            setLastModified(2000L)
+        }
+        assertTrue(normalFile.exists())
+        assertTrue(orphanedTmpFile.exists())
+
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+        assertTrue("Valid file must remain", normalFile.exists())
+        assertFalse("Orphaned tmp file must be purged", orphanedTmpFile.exists())
+        assertEquals(100L, cache.currentSize)
+        assertEquals(1, cache.entryCount)
+    }
+
+    @Test
+    fun mediaAssetCacheManager_handlesThumbnailsAndPlaybackAssetsIndependently() {
+        val thumbDir = tempFolder.newFolder("mgr_thumbs")
+        val playbackDir = tempFolder.newFolder("mgr_playback")
+
+        // Configure limits: 200 bytes for thumb, 500 bytes for playback
+        val manager = MediaAssetCacheManager(
+            thumbnailDir = thumbDir,
+            playbackDir = playbackDir,
+            thumbnailLimit = 200L,
+            playbackLimit = 500L
+        )
+
+        // 1. Thumbnail caching and replay
+        val thumbData = ByteArray(150) { 9 }
+        manager.cacheThumbnail("thumb_song_1", thumbData)
+        assertTrue(manager.isThumbnailCached("thumb_song_1"))
+        val retrievedThumb = manager.getCachedThumbnail("thumb_song_1")
+        assertNotNull(retrievedThumb)
+        assertArrayEquals(thumbData, retrievedThumb!!.readBytes())
+
+        // 2. Playback asset caching and replay
+        val audioData = ByteArray(300) { 8 }
+        manager.cachePlaybackAsset("audio_song_1", audioData)
+        assertTrue(manager.isPlaybackAssetCached("audio_song_1"))
+        val retrievedAudio = manager.getCachedPlaybackAsset("audio_song_1")
+        assertNotNull(retrievedAudio)
+        assertArrayEquals(audioData, retrievedAudio!!.readBytes())
+
+        // 3. Independent LRU eviction: adding second thumb (150 bytes) evicts first thumb (150+150=300 > 200)
+        val thumbData2 = ByteArray(150) { 7 }
+        manager.cacheThumbnail("thumb_song_2", thumbData2)
+        assertFalse("Old thumb should be evicted", manager.isThumbnailCached("thumb_song_1"))
+        assertTrue("New thumb should be cached", manager.isThumbnailCached("thumb_song_2"))
+
+        // Playback cache must remain completely unaffected by thumbnail operations
+        assertTrue("Playback cache unaffected by thumb eviction", manager.isPlaybackAssetCached("audio_song_1"))
+    }
+
+    @Test
+    fun mediaAssetCacheManager_playbackAssetStream_cachingAndEviction() {
+        val thumbDir = tempFolder.newFolder("mgr_stream_thumbs")
+        val playbackDir = tempFolder.newFolder("mgr_stream_playback")
+
+        val manager = MediaAssetCacheManager(
+            thumbnailDir = thumbDir,
+            playbackDir = playbackDir,
+            thumbnailLimit = 1000L,
+            playbackLimit = 500L
+        )
+
+        val streamData1 = ByteArray(300) { 1 }
+        val streamData2 = ByteArray(300) { 2 }
+
+        manager.cachePlaybackAssetStream("stream_1", ByteArrayInputStream(streamData1))
+        assertTrue(manager.isPlaybackAssetCached("stream_1"))
+
+        manager.cachePlaybackAssetStream("stream_2", ByteArrayInputStream(streamData2))
+        assertTrue(manager.isPlaybackAssetCached("stream_2"))
+        assertFalse("stream_1 should be evicted to enforce 500 byte limit", manager.isPlaybackAssetCached("stream_1"))
     }
 }

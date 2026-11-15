@@ -77,41 +77,47 @@ class LruAssetCache(
         val targetFile = getFileForKey(key)
         val tempFile = File(cacheDir, "${targetFile.name}.tmp_${System.nanoTime()}")
 
-        FileOutputStream(tempFile).use { fos ->
-            fos.write(bytes)
-            fos.flush()
-        }
-
-        if (targetFile.exists()) {
-            targetFile.delete()
-        }
-        if (!tempFile.renameTo(targetFile)) {
-            tempFile.copyTo(targetFile, overwrite = true)
-            tempFile.delete()
-        }
-
-        val size = targetFile.length()
-        val now = System.currentTimeMillis()
-
-        lock.withLock {
-            val oldEntry = entries[key]
-            if (oldEntry != null) {
-                totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+        try {
+            FileOutputStream(tempFile).use { fos ->
+                fos.write(bytes)
+                fos.flush()
             }
 
-            val newEntry = CacheEntry(
-                key = key,
-                file = targetFile,
-                sizeBytes = size,
-                lastAccessedMs = now
-            )
-            entries[key] = newEntry
-            totalSizeBytes += size
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+            if (!tempFile.renameTo(targetFile)) {
+                tempFile.copyTo(targetFile, overwrite = true)
+                tempFile.delete()
+            }
 
-            evictLruUntilWithinLimitInternal()
+            val size = targetFile.length()
+            val now = System.currentTimeMillis()
+
+            lock.withLock {
+                val oldEntry = entries[key]
+                if (oldEntry != null) {
+                    totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+                }
+
+                val newEntry = CacheEntry(
+                    key = key,
+                    file = targetFile,
+                    sizeBytes = size,
+                    lastAccessedMs = now
+                )
+                entries[key] = newEntry
+                totalSizeBytes += size
+
+                evictLruUntilWithinLimitInternal()
+            }
+
+            return targetFile
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
         }
-
-        return targetFile
     }
 
     /**
@@ -122,45 +128,51 @@ class LruAssetCache(
         val targetFile = getFileForKey(key)
         val tempFile = File(cacheDir, "${targetFile.name}.tmp_${System.nanoTime()}")
 
-        FileOutputStream(tempFile).use { fos ->
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                fos.write(buffer, 0, bytesRead)
-            }
-            fos.flush()
-        }
-
-        if (targetFile.exists()) {
-            targetFile.delete()
-        }
-        if (!tempFile.renameTo(targetFile)) {
-            tempFile.copyTo(targetFile, overwrite = true)
-            tempFile.delete()
-        }
-
-        val size = targetFile.length()
-        val now = System.currentTimeMillis()
-
-        lock.withLock {
-            val oldEntry = entries[key]
-            if (oldEntry != null) {
-                totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+        try {
+            FileOutputStream(tempFile).use { fos ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    fos.write(buffer, 0, bytesRead)
+                }
+                fos.flush()
             }
 
-            val newEntry = CacheEntry(
-                key = key,
-                file = targetFile,
-                sizeBytes = size,
-                lastAccessedMs = now
-            )
-            entries[key] = newEntry
-            totalSizeBytes += size
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+            if (!tempFile.renameTo(targetFile)) {
+                tempFile.copyTo(targetFile, overwrite = true)
+                tempFile.delete()
+            }
 
-            evictLruUntilWithinLimitInternal()
+            val size = targetFile.length()
+            val now = System.currentTimeMillis()
+
+            lock.withLock {
+                val oldEntry = entries[key]
+                if (oldEntry != null) {
+                    totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+                }
+
+                val newEntry = CacheEntry(
+                    key = key,
+                    file = targetFile,
+                    sizeBytes = size,
+                    lastAccessedMs = now
+                )
+                entries[key] = newEntry
+                totalSizeBytes += size
+
+                evictLruUntilWithinLimitInternal()
+            }
+
+            return targetFile
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
         }
-
-        return targetFile
     }
 
     /**
@@ -303,18 +315,21 @@ class LruAssetCache(
     private fun scanExistingFiles() {
         val files = cacheDir.listFiles() ?: return
         for (f in files) {
-            if (f.isFile && !f.name.endsWith(".tmp")) {
-                val key = f.name
-                val size = f.length()
-                val lastModified = f.lastModified()
-                entries[key] = CacheEntry(
-                    key = key,
-                    file = f,
-                    sizeBytes = size,
-                    lastAccessedMs = lastModified
-                )
-                totalSizeBytes += size
+            if (!f.isFile) continue
+            if (f.name.contains(".tmp")) {
+                f.delete()
+                continue
             }
+            val key = f.name
+            val size = f.length()
+            val lastModified = f.lastModified()
+            entries[key] = CacheEntry(
+                key = key,
+                file = f,
+                sizeBytes = size,
+                lastAccessedMs = lastModified
+            )
+            totalSizeBytes += size
         }
         evictLruUntilWithinLimitInternal()
     }

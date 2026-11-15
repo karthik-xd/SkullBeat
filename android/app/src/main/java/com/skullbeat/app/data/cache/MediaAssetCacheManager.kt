@@ -16,17 +16,30 @@ import javax.inject.Singleton
  * - Playback asset cache: 1GB limit
  */
 @Singleton
-class MediaAssetCacheManager @Inject constructor(
-    @ApplicationContext context: Context
+class MediaAssetCacheManager(
+    val thumbnailCache: LruAssetCache,
+    val playbackAssetCache: LruAssetCache
 ) {
-    val thumbnailCache: LruAssetCache = LruAssetCache(
-        cacheDir = File(context.cacheDir, "thumbnail_cache"),
-        maxSizeBytes = 250L * 1024 * 1024 // 250MB
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(
+        thumbnailCache = LruAssetCache(
+            cacheDir = File(context.cacheDir, "thumbnail_cache"),
+            maxSizeBytes = 250L * 1024 * 1024 // 250MB
+        ),
+        playbackAssetCache = LruAssetCache(
+            cacheDir = File(context.cacheDir, "playback_assets"),
+            maxSizeBytes = 1024L * 1024 * 1024 // 1GB
+        )
     )
 
-    val playbackAssetCache: LruAssetCache = LruAssetCache(
-        cacheDir = File(context.cacheDir, "playback_assets"),
-        maxSizeBytes = 1024L * 1024 * 1024 // 1GB
+    constructor(
+        thumbnailDir: File,
+        playbackDir: File,
+        thumbnailLimit: Long = 250L * 1024 * 1024,
+        playbackLimit: Long = 1024L * 1024 * 1024
+    ) : this(
+        thumbnailCache = LruAssetCache(thumbnailDir, thumbnailLimit),
+        playbackAssetCache = LruAssetCache(playbackDir, playbackLimit)
     )
 
     fun getCachedThumbnail(videoId: String): File? = thumbnailCache.get(videoId)
