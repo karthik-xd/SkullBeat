@@ -208,6 +208,10 @@ fun SearchScreen(
                                     viewModel.addToQueue(track)
                                     Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
                                 }
+                                com.skullbeat.app.ui.components.SwipeAction.REMOVE_FROM_QUEUE -> {
+                                    viewModel.removeFromQueue(track)
+                                    Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                }
                                 com.skullbeat.app.ui.components.SwipeAction.PLAY_NEXT -> {
                                     viewModel.addToQueue(track)
                                     Toast.makeText(context, "Playing next: ${track.title}", Toast.LENGTH_SHORT).show()

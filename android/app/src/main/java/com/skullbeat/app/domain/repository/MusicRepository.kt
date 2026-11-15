@@ -36,6 +36,7 @@ interface MusicRepository {
     fun getPlaylist(playlistId: Long): Flow<Playlist?>
     fun getPlaylistTracks(playlistId: Long): Flow<List<Track>>
     suspend fun addTrackToPlaylist(playlistId: Long, track: Track): Boolean
+    suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>): Boolean
     suspend fun removeTrackFromPlaylist(playlistId: Long, videoId: String)
 
     suspend fun recordPlay(track: Track)

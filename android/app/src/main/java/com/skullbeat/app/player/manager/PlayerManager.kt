@@ -488,7 +488,12 @@ class PlayerManager @Inject constructor(
     }
 
     fun toggleShuffle() {
-        val newShuffle = !_playbackState.value.isShuffle
+        setShuffle(!_playbackState.value.isShuffle)
+    }
+
+    fun setShuffle(enabled: Boolean) {
+        if (_playbackState.value.isShuffle == enabled) return
+        val newShuffle = enabled
         val tracks = _playbackState.value.tracks
         val currentIndex = _playbackState.value.currentIndex
         val shuffleOrder = if (newShuffle) {
@@ -613,17 +618,18 @@ class PlayerManager @Inject constructor(
     }
 
     private fun buildMediaItem(track: Track): MediaItem {
+        val metadataBuilder = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+        if (track.thumbnailUrl.isNotBlank()) {
+            metadataBuilder.setArtworkUri(Uri.parse(track.thumbnailUrl))
+        }
+
         return MediaItem.Builder()
             .setMediaId(track.videoId)
             .setUri(Uri.parse("skullbeat://audio?id=${track.videoId}"))
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(track.title)
-                    .setArtist(track.artist)
-                    .setAlbumTitle(track.album)
-                    .setArtworkUri(Uri.parse(track.thumbnailUrl))
-                    .build()
-            )
+            .setMediaMetadata(metadataBuilder.build())
             .build()
     }
 

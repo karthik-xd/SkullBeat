@@ -51,6 +51,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND videoId = :videoId")
     suspend fun removeTrackFromPlaylist(playlistId: Long, videoId: String)
 
+    @Query("SELECT MIN(position) FROM playlist_tracks WHERE playlistId = :playlistId")
+    suspend fun getMinPosition(playlistId: Long): Int?
+
     @Query("SELECT MAX(position) FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun getMaxPosition(playlistId: Long): Int?
 
@@ -59,8 +62,17 @@ interface PlaylistDao {
 
     @Transaction
     suspend fun addTrackToPlaylist(playlistId: Long, videoId: String) {
-        val nextPos = (getMaxPosition(playlistId) ?: -1) + 1
-        insertPlaylistTrack(PlaylistTrack(playlistId = playlistId, videoId = videoId, position = nextPos))
+        val minPos = (getMinPosition(playlistId) ?: 1) - 1
+        insertPlaylistTrack(PlaylistTrack(playlistId = playlistId, videoId = videoId, position = minPos))
+    }
+
+    @Transaction
+    suspend fun addTracksToPlaylist(playlistId: Long, videoIds: List<String>) {
+        val startPos = (getMaxPosition(playlistId) ?: -1) + 1
+        val playlistTracks = videoIds.mapIndexed { index, videoId ->
+            PlaylistTrack(playlistId = playlistId, videoId = videoId, position = startPos + index)
+        }
+        insertPlaylistTracks(playlistTracks)
     }
 
     @Query("""

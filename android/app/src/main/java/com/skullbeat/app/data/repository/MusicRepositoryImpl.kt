@@ -187,11 +187,21 @@ class MusicRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addTrackToPlaylist(playlistId: Long, track: Track): Boolean {
-        if (isTrackInPlaylist(playlistId, track.videoId)) {
-            return false
-        }
         db.trackDao().insertTrack(track)
+        if (isTrackInPlaylist(playlistId, track.videoId)) {
+            // Remove previous position so it is promoted to the very first position
+            db.playlistDao().removeTrackFromPlaylist(playlistId, track.videoId)
+        }
         db.playlistDao().addTrackToPlaylist(playlistId, track.videoId)
+        return true
+    }
+
+    override suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>): Boolean {
+        if (tracks.isEmpty()) return false
+        val newTracks = tracks.filter { !isTrackInPlaylist(playlistId, it.videoId) }
+        if (newTracks.isEmpty()) return false
+        db.trackDao().insertTracks(newTracks)
+        db.playlistDao().addTracksToPlaylist(playlistId, newTracks.map { it.videoId })
         return true
     }
 

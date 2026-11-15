@@ -400,9 +400,7 @@ fun ImportDialog(
                                         emoji = "🎧",
                                         colorHex = "#3D8BFF"
                                     )
-                                    for (track in result.tracks) {
-                                        repository.addTrackToPlaylist(playlistId, track)
-                                    }
+                                    repository.addTracksToPlaylist(playlistId, result.tracks)
 
                                     withContext(Dispatchers.Main) {
                                         isImporting = false
@@ -416,9 +414,7 @@ fun ImportDialog(
                                         emoji = "▶️",
                                         colorHex = "#FF3B5C"
                                     )
-                                    for (track in tracks) {
-                                        repository.addTrackToPlaylist(playlistId, track)
-                                    }
+                                    repository.addTracksToPlaylist(playlistId, tracks)
 
                                     withContext(Dispatchers.Main) {
                                         isImporting = false
@@ -468,9 +464,7 @@ fun ImportDialog(
                                     emoji = "📁",
                                     colorHex = "#00E5FF"
                                 )
-                                for (track in matchedTracks) {
-                                    repository.addTrackToPlaylist(playlistId, track)
-                                }
+                                repository.addTracksToPlaylist(playlistId, matchedTracks)
 
                                 withContext(Dispatchers.Main) {
                                     isImporting = false

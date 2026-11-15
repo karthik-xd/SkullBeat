@@ -12,6 +12,7 @@ val ElectricBlue = Color(0xFF3D8BFF)
 val CyanAccent = Color(0xFF00D4FF)
 val VioletAccent = Color(0xFF8B5CFF)
 val HeartRed = Color(0xFFFF3B5C)
+val CoralRose = Color(0xFFFF6584)
 val SuccessGreen = Color(0xFF2DE08A)
 val WarningYellow = Color(0xFFFFB020)
 

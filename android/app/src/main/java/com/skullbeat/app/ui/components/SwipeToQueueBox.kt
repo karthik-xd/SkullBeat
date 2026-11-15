@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,8 +46,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.skullbeat.app.ui.theme.CoralRose
 import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
+import com.skullbeat.app.ui.theme.HeartRed
 import com.skullbeat.app.ui.theme.SurfaceDark
 import com.skullbeat.app.ui.theme.VioletAccent
 import kotlinx.coroutines.launch
@@ -64,6 +67,12 @@ enum class SwipeAction(
         releaseLabel = "Release to add to queue",
         icon = Icons.AutoMirrored.Filled.QueueMusic,
         gradient = listOf(ElectricBlue, CyanAccent)
+    ),
+    REMOVE_FROM_QUEUE(
+        label = "Remove from queue",
+        releaseLabel = "Release to remove from queue",
+        icon = Icons.Default.RemoveCircleOutline,
+        gradient = listOf(HeartRed, CoralRose)
     ),
     PLAY_NEXT(
         label = "Play next",
@@ -84,7 +93,7 @@ fun SwipeToQueueBox(
     onSwipeToQueue: () -> Unit,
     modifier: Modifier = Modifier,
     startToEndAction: SwipeAction = SwipeAction.ADD_TO_QUEUE,
-    endToStartAction: SwipeAction = SwipeAction.ADD_TO_QUEUE,
+    endToStartAction: SwipeAction = SwipeAction.REMOVE_FROM_QUEUE,
     onTriggerAction: ((SwipeAction) -> Unit)? = null,
     content: @Composable () -> Unit
 ) {

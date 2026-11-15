@@ -40,10 +40,10 @@ class PlaylistViewModel @Inject constructor(
     fun playAll(shuffle: Boolean = false) {
         val list = tracks.value
         if (list.isNotEmpty()) {
-            if (shuffle) {
-                playerManager.toggleShuffle()
-            }
-            playerManager.playTrack(list[0], list, PlaybackContextType.PLAYLIST, playlistId.toString())
+            playerManager.setShuffle(shuffle)
+            val plName = playlist.value?.name ?: "Playlist"
+            val startTrack = if (shuffle) list.random() else list[0]
+            playerManager.playTrack(startTrack, list, PlaybackContextType.PLAYLIST, plName)
         }
     }
 
@@ -56,7 +56,8 @@ class PlaylistViewModel @Inject constructor(
     }
 
     fun playTrack(track: Track) {
-        playerManager.playTrack(track, tracks.value, PlaybackContextType.PLAYLIST, playlistId.toString())
+        val plName = playlist.value?.name ?: "Playlist"
+        playerManager.playTrack(track, tracks.value, PlaybackContextType.PLAYLIST, plName)
     }
 
     fun removeTrack(videoId: String) {

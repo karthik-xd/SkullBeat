@@ -61,6 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
+import com.skullbeat.app.ui.components.SwipeAction
 import com.skullbeat.app.ui.components.SwipeToQueueBox
 import com.skullbeat.app.domain.util.FilterCriteria
 import com.skullbeat.app.domain.util.TimeUtils
@@ -428,6 +429,21 @@ fun LibraryScreen(
                             onSwipeToQueue = {
                                 viewModel.addToQueue(track)
                                 Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                            },
+                            startToEndAction = SwipeAction.ADD_TO_QUEUE,
+                            endToStartAction = SwipeAction.REMOVE_FROM_QUEUE,
+                            onTriggerAction = { action ->
+                                when (action) {
+                                    SwipeAction.ADD_TO_QUEUE -> {
+                                        viewModel.addToQueue(track)
+                                        Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    SwipeAction.REMOVE_FROM_QUEUE -> {
+                                        viewModel.removeFromQueue(track)
+                                        Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    else -> {}
+                                }
                             }
                         ) {
                             LibraryTrackRow(

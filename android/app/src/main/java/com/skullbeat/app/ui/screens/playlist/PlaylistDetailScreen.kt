@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -372,6 +373,10 @@ fun PlaylistDetailScreen(
                         onClick = { viewModel.playTrack(track) },
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
+                        onRemoveFromPlaylist = {
+                            viewModel.removeTrack(track.videoId)
+                            Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
+                        },
                         onDownload = { onDownload(track) },
                         onArtistClick = onArtistClick,
                         onSwipeToQueue = {
@@ -383,6 +388,10 @@ fun PlaylistDetailScreen(
                                 com.skullbeat.app.ui.components.SwipeAction.ADD_TO_QUEUE -> {
                                     viewModel.addToQueue(track)
                                     Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
+                                }
+                                com.skullbeat.app.ui.components.SwipeAction.REMOVE_FROM_QUEUE -> {
+                                    viewModel.removeFromQueue(track)
+                                    Toast.makeText(context, "Removed from queue: ${track.title}", Toast.LENGTH_SHORT).show()
                                 }
                                 com.skullbeat.app.ui.components.SwipeAction.PLAY_NEXT -> {
                                     viewModel.addToQueue(track)
@@ -580,20 +589,27 @@ fun PlaylistDetailScreen(
 
                                 IconButton(
                                     onClick = {
-                                        if (!isAlreadyAdded) {
+                                        if (isAlreadyAdded) {
+                                            viewModel.removeTrack(candidateTrack.videoId)
+                                            Toast.makeText(
+                                                context,
+                                                "Removed \"${candidateTrack.title}\" from ${playlist?.name ?: "Playlist"}",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
                                             viewModel.addTrack(candidateTrack)
                                             Toast.makeText(
                                                 context,
-                                                "Added \"${candidateTrack.title}\" to ${playlist?.name}",
+                                                "Added \"${candidateTrack.title}\" to ${playlist?.name ?: "Playlist"}",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         }
                                     }
                                 ) {
                                     Icon(
-                                        imageVector = if (isAlreadyAdded) Icons.Default.Close else Icons.Default.Add,
-                                        contentDescription = if (isAlreadyAdded) "Already in playlist" else "Add",
-                                        tint = if (isAlreadyAdded) TextMuted else CyanAccent,
+                                        imageVector = if (isAlreadyAdded) Icons.Default.Check else Icons.Default.Add,
+                                        contentDescription = if (isAlreadyAdded) "In playlist (tap to remove)" else "Add",
+                                        tint = if (isAlreadyAdded) CyanAccent else ElectricBlue,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }

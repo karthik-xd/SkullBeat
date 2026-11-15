@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -53,10 +54,13 @@ fun TrackListItem(
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit = {},
     onAddToPlaylist: () -> Unit = {},
+    onRemoveFromPlaylist: (() -> Unit)? = null,
     onDownload: () -> Unit = {},
     onArtistClick: ((String) -> Unit)? = null,
     onSwipeToQueue: (() -> Unit)? = null,
     onSwipeAction: ((SwipeAction) -> Unit)? = null,
+    startToEndAction: SwipeAction = SwipeAction.ADD_TO_QUEUE,
+    endToStartAction: SwipeAction = SwipeAction.REMOVE_FROM_QUEUE,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -151,12 +155,25 @@ fun TrackListItem(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
-                    if (onSwipeToQueue != null) {
+                    if (onSwipeToQueue != null || onSwipeAction != null) {
                         DropdownMenuItem(
                             text = { Text("Add to Queue") },
                             onClick = {
                                 showMenu = false
-                                onSwipeToQueue()
+                                if (onSwipeAction != null) {
+                                    onSwipeAction(SwipeAction.ADD_TO_QUEUE)
+                                } else {
+                                    onSwipeToQueue?.invoke()
+                                }
+                            }
+                        )
+                    }
+                    if (onSwipeAction != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from Queue") },
+                            onClick = {
+                                showMenu = false
+                                onSwipeAction(SwipeAction.REMOVE_FROM_QUEUE)
                             }
                         )
                     }
@@ -167,6 +184,23 @@ fun TrackListItem(
                             onAddToPlaylist()
                         }
                     )
+                    if (onRemoveFromPlaylist != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from Playlist", color = HeartRed) },
+                            onClick = {
+                                showMenu = false
+                                onRemoveFromPlaylist()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Remove from Playlist",
+                                    tint = HeartRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Download") },
                         onClick = {
@@ -191,6 +225,8 @@ fun TrackListItem(
     if (hasSwipe) {
         SwipeToQueueBox(
             onSwipeToQueue = onSwipeToQueue ?: {},
+            startToEndAction = startToEndAction,
+            endToStartAction = endToStartAction,
             onTriggerAction = onSwipeAction,
             modifier = modifier
         ) {
