@@ -121,7 +121,9 @@ object ImageUtils {
             finalBitmap.recycle()
 
             // 7. Delete old cover file if it exists and differs
-            deleteCoverFile(oldCoverPath)
+            if (oldCoverPath != null && oldCoverPath != newFile.absolutePath) {
+                deleteCoverFile(oldCoverPath)
+            }
 
             newFile.absolutePath
         } catch (e: Exception) {

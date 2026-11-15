@@ -1,10 +1,16 @@
 package com.skullbeat.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.skullbeat.app.domain.models.Playlist
+import com.skullbeat.app.ui.theme.RaisedDark
 import java.io.File
 
 @Composable
@@ -27,7 +34,8 @@ fun PlaylistCover(
     size: Dp,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(12.dp),
-    emojiSizeSp: Int = (size.value * 0.44f).toInt().coerceAtLeast(16)
+    emojiSizeSp: Int = (size.value * 0.44f).toInt().coerceAtLeast(16),
+    showEditBadge: Boolean = false
 ) {
     PlaylistCover(
         coverPath = playlist?.coverPath,
@@ -36,7 +44,8 @@ fun PlaylistCover(
         size = size,
         modifier = modifier,
         shape = shape,
-        emojiSizeSp = emojiSizeSp
+        emojiSizeSp = emojiSizeSp,
+        showEditBadge = showEditBadge
     )
 }
 
@@ -48,7 +57,8 @@ fun PlaylistCover(
     size: Dp,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(12.dp),
-    emojiSizeSp: Int = (size.value * 0.44f).toInt().coerceAtLeast(16)
+    emojiSizeSp: Int = (size.value * 0.44f).toInt().coerceAtLeast(16),
+    showEditBadge: Boolean = false
 ) {
     val bgColor = remember(colorHex) {
         try {
@@ -89,6 +99,30 @@ fun PlaylistCover(
             )
         } else {
             fallbackContent()
+        }
+
+        if (showEditBadge) {
+            val badgeSize = (size * 0.3f).coerceIn(20.dp, 30.dp)
+            val iconSize = (badgeSize * 0.58f).coerceAtLeast(12.dp)
+            val badgePadding = (size * 0.06f).coerceIn(4.dp, 8.dp)
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(badgePadding)
+                    .size(badgeSize)
+                    .clip(CircleShape)
+                    .background(RaisedDark.copy(alpha = 0.85f))
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Change Cover Photo",
+                    tint = Color.White,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
         }
     }
 }

@@ -78,26 +78,43 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    fun updateCoverPhoto(context: android.content.Context, uri: android.net.Uri) {
+    fun updateCoverPhoto(
+        context: android.content.Context,
+        uri: android.net.Uri,
+        onSuccess: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
         viewModelScope.launch {
-            val oldCover = playlist.value?.coverPath
-            val newPath = com.skullbeat.app.domain.util.ImageUtils.processAndSavePlaylistCover(
-                context = context,
-                sourceUri = uri,
-                playlistId = playlistId,
-                oldCoverPath = oldCover
-            )
-            if (newPath != null) {
-                repository.updatePlaylistCover(playlistId, newPath)
+            try {
+                val oldCover = playlist.value?.coverPath
+                val newPath = com.skullbeat.app.domain.util.ImageUtils.processAndSavePlaylistCover(
+                    context = context,
+                    sourceUri = uri,
+                    playlistId = playlistId,
+                    oldCoverPath = oldCover
+                )
+                if (newPath != null) {
+                    repository.updatePlaylistCover(playlistId, newPath)
+                    onSuccess?.invoke()
+                } else {
+                    onError?.invoke("Failed to process cover image")
+                }
+            } catch (e: Exception) {
+                onError?.invoke(e.message ?: "Failed to update cover photo")
             }
         }
     }
 
-    fun removeCoverPhoto() {
+    fun removeCoverPhoto(onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
-            val oldCover = playlist.value?.coverPath
-            com.skullbeat.app.domain.util.ImageUtils.deleteCoverFile(oldCover)
-            repository.updatePlaylistCover(playlistId, null)
+            try {
+                val oldCover = playlist.value?.coverPath
+                com.skullbeat.app.domain.util.ImageUtils.deleteCoverFile(oldCover)
+                repository.updatePlaylistCover(playlistId, null)
+                onComplete?.invoke()
+            } catch (e: Exception) {
+                // Ignore or handle
+            }
         }
     }
 
