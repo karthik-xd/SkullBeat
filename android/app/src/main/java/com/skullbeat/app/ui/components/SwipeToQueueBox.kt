@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -32,7 +31,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -112,8 +110,7 @@ fun SwipeToQueueBox(
             .onSizeChanged { size ->
                 totalWidthPx = size.width.toFloat().coerceAtLeast(1f)
             }
-            .clip(RoundedCornerShape(10.dp))
-            .clipToBounds()
+            .clipToBounds() // single clip; enough to mask the sliding row at both sides
     ) {
 
         // 1. Colored background with icon and label (rendered only when offset != 0)
@@ -176,12 +173,13 @@ fun SwipeToQueueBox(
         }
 
         // 2. Foreground content with 100% OPAQUE background
+        // No clip here — outer Box already clips to bounds.
+        // fillMaxSize (not fillMaxWidth) plugs corner gaps that let the bg bleed through.
         Box(
             modifier = Modifier
                 .offset { IntOffset(dragOffset.roundToInt(), 0) }
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(SurfaceDark) // Opaque so background never shows through!
+                .fillMaxSize()
+                .background(SurfaceDark) // Opaque — covers every pixel behind the row
                 .pointerInput(thresholdPx, maxDragPx) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
