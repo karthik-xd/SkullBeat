@@ -49,6 +49,9 @@ fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val updates = listOf(
+        "Fixed Fast-Scrolling Playlist Crash" to "Replaced non-unique item keys with composite indexed keys, eliminated subcomposition drag delays, and isolated progress ticker recompositions.",
+        "Smooth 60fps Thumbnail Caching" to "Coil image loader configured with 25% heap memory cache, 50MB disk cache, and 144x144 thumbnail downsampling for silky-smooth flings.",
+        "Direct Playlist Photo Cover" to "Tap playlist cover to open quick options sheet, select any local photo from gallery, and automatically crop and persist in app storage.",
         "Fixed Swipe-to-Queue Overlap" to "Track rows have 100% solid opaque background with zero bleed-through or text overlap. Supports bidirectional swipe, spring back, and tactile haptic feedback.",
         "Custom Playlist Photo Covers" to "Select from gallery or snap a photo with camera for playlist covers with automatic 1:1 center-cropping and fast WebP compression.",
         "Smart Add-to-Playlist" to "Updated playlist picker with cover art previews and duplicate detection prevents duplicate song entries.",
@@ -98,7 +101,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.3 (Build 6)",
+                                text = "Version 1.2.4 (Build 7)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ElectricBlue
                             )
