@@ -97,6 +97,7 @@ android/app/src/main/
 │   │       ├── TrackExporter.kt  # Generates M3U playlist, CSV, and JSON strings for sharing
 │   │       ├── TrackMatcher.kt   # Levenshtein & token-matching logic for Spotify to YouTube mapping
 │   │       ├── CsvTrackParser.kt # Parser for user-uploaded CSV song lists
+│   │       ├── ImageUtils.kt     # Photo downsampling, EXIF orientation rotation, 1:1 crop, WebP compression, storage persistence
 │   │       └── TimeUtils.kt      # Formats mm:ss, parses ISO durations, and computes display timestamps
 │   │
 │   ├── data/                 # [PARENT: Concrete Data Sources & Persistence]
@@ -151,8 +152,9 @@ android/app/src/main/
 │       ├── components/       # Reusable Design System Widgets
 │       │   ├── BeatWaveView.kt    # 60fps kinetic audio wave with XOR difference invert SKULLBEAT wordmark
 │       │   ├── SkullPlayButton.kt # Optically centered skull button (play glyph, pause bars, spinning buffer state)
-│       │   ├── SwipeToQueueBox.kt # 120fps left-to-right gesture box triggering immediate user queue addition
-│       │   ├── TrackListItem.kt   # Track item with 1-touch play, artist click, favorite heart, and swipe-to-queue
+│       │   ├── SwipeToQueueBox.kt # 120fps gesture box triggering immediate user queue addition with onSizeChanged
+│       │   ├── TrackListItem.kt   # Track item with 1-touch play, 144x144 Coil downsampled artwork, and swipe-to-queue
+│       │   ├── PlaylistCover.kt   # Reusable cover component with custom photo Coil loading, edit badge, and emoji fallback
 │       │   ├── MiniPlayer.kt      # Floating mini-player bar docked above bottom nav with 2dp progress highlight
 │       │   └── FilterBar.kt       # Chips (Artist, Title, Album) & duration range slider for library filtering
 │       │
