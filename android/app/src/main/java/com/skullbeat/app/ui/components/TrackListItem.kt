@@ -30,10 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Precision
 import com.skullbeat.app.domain.models.Track
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.HeartRed
@@ -57,6 +60,15 @@ fun TrackListItem(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val imageRequest = remember(track.thumbnailUrl) {
+        ImageRequest.Builder(context)
+            .data(track.thumbnailUrl.ifBlank { null })
+            .size(144, 144)
+            .precision(Precision.EXACT)
+            .crossfade(true)
+            .build()
+    }
 
     val hasSwipe = onSwipeToQueue != null || onSwipeAction != null
     val rowModifier = if (hasSwipe) Modifier else modifier
@@ -71,7 +83,7 @@ fun TrackListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = track.thumbnailUrl,
+                model = imageRequest,
                 contentDescription = track.title,
                 modifier = Modifier
                     .size(48.dp)

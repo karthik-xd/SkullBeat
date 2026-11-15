@@ -6,7 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -93,15 +93,19 @@ fun SwipeToQueueBox(
     var hasTriggeredHaptic by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
-    BoxWithConstraints(
+    var totalWidthPx by remember { mutableFloatStateOf(1f) }
+    val thresholdPx = totalWidthPx * 0.38f
+    val maxDragPx = totalWidthPx * 0.55f
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .onSizeChanged { size ->
+                totalWidthPx = size.width.toFloat().coerceAtLeast(1f)
+            }
             .clip(RoundedCornerShape(10.dp))
             .clipToBounds()
     ) {
-        val totalWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
-        val thresholdPx = totalWidthPx * 0.38f
-        val maxDragPx = totalWidthPx * 0.55f
 
         // 1. Colored background with icon and label (rendered only when offset != 0)
         if (dragOffset != 0f) {

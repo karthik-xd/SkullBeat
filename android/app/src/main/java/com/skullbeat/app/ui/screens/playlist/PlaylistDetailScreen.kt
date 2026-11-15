@@ -1,6 +1,10 @@
 package com.skullbeat.app.ui.screens.playlist
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +21,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -70,6 +76,8 @@ import com.skullbeat.app.ui.theme.TextBone
 import com.skullbeat.app.ui.theme.TextMuted
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,16 +96,62 @@ fun PlaylistDetailScreen(
     val playlist by viewModel.playlist.collectAsState()
     val tracks by viewModel.tracks.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
-    val playbackState by viewModel.playbackState.collectAsState()
+    val playlistId = viewModel.playlistId
+    val currentTrackId by remember(viewModel.playbackState) {
+        viewModel.playbackState
+            .map { it.currentTrack?.videoId }
+            .distinctUntilChanged()
+    }.collectAsState(initial = viewModel.playbackState.value.currentTrack?.videoId)
 
     val favIds = remember(favorites) { favorites.map { it.videoId }.toSet() }
     var showAddSongsSheet by remember { mutableStateOf(false) }
+    var showCoverOptionsSheet by remember { mutableStateOf(false) }
 
-    val bgColor = remember(playlist?.colorHex) {
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.updateCoverPhoto(
+                context = context,
+                uri = uri,
+                onSuccess = {
+                    Toast.makeText(context, "Cover photo updated", Toast.LENGTH_SHORT).show()
+                },
+                onError = { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
+
+    val getContentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.updateCoverPhoto(
+                context = context,
+                uri = uri,
+                onSuccess = {
+                    Toast.makeText(context, "Cover photo updated", Toast.LENGTH_SHORT).show()
+                },
+                onError = { msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
+
+    fun launchPhotoPicker() {
         try {
-            Color(android.graphics.Color.parseColor(playlist?.colorHex ?: "#3D8BFF"))
+            photoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
         } catch (_: Exception) {
-            Color(0xFF3D8BFF)
+            try {
+                getContentLauncher.launch("image/*")
+            } catch (_: Exception) {
+                Toast.makeText(context, "Cannot open photo picker", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -181,8 +235,9 @@ fun PlaylistDetailScreen(
                 playlist = playlist,
                 size = 96.dp,
                 shape = RoundedCornerShape(14.dp),
+                showEditBadge = true,
                 modifier = Modifier.clickable {
-                    playlist?.let { onEditPlaylist(it) }
+                    showCoverOptionsSheet = true
                 }
             )
 
@@ -300,13 +355,19 @@ fun PlaylistDetailScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 contentPadding = PaddingValues(bottom = 120.dp)
             ) {
-                items(tracks, key = { "pl_track_${it.videoId}" }) { track ->
+                itemsIndexed(
+                    items = tracks,
+                    key = { index, track -> "pl_${playlistId}_${track.videoId}_$index" },
+                    contentType = { _, _ -> "track_item" }
+                ) { _, track ->
                     TrackListItem(
                         track = track,
-                        isCurrentTrack = playbackState.currentTrack?.videoId == track.videoId,
+                        isCurrentTrack = currentTrackId == track.videoId,
                         isFavorite = favIds.contains(track.videoId),
                         onClick = { viewModel.playTrack(track) },
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
@@ -539,6 +600,121 @@ fun PlaylistDetailScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (showCoverOptionsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCoverOptionsSheet = false },
+            containerColor = SurfaceDark
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Playlist Cover",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = TextBone
+                    ),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
+                // Option: Change Photo
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RaisedDark)
+                        .clickable {
+                            showCoverOptionsSheet = false
+                            launchPhotoPicker()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "Change Photo",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = "Change Photo",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = TextBone
+                        )
+                    )
+                }
+
+                // Option: Remove Photo (if custom cover exists)
+                if (!playlist?.coverPath.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(RaisedDark)
+                            .clickable {
+                                showCoverOptionsSheet = false
+                                viewModel.removeCoverPhoto {
+                                    Toast.makeText(context, "Cover photo removed", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Remove Photo",
+                            tint = HeartRed,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = "Remove Photo",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = HeartRed
+                            )
+                        )
+                    }
+                }
+
+                // Option: Edit Details
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RaisedDark)
+                        .clickable {
+                            showCoverOptionsSheet = false
+                            playlist?.let { onEditPlaylist(it) }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Details",
+                        tint = TextBone,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = "Edit Details",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = TextBone
+                        )
+                    )
                 }
             }
         }
