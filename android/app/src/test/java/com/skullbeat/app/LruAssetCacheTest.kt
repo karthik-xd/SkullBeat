@@ -660,4 +660,132 @@ class LruAssetCacheTest {
         assertFalse("thumb_B was LRU and must be evicted", manager.isThumbnailCached("thumb_B"))
         assertTrue("thumb_C must be cached", manager.isThumbnailCached("thumb_C"))
     }
+
+    @Test
+    fun validKeyContainingLruTmp_preservedAcrossRestart() {
+        val cacheDir = tempFolder.newFolder("lru_tmp_valid_cache")
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 2000L)
+        val data = "valid_lru_tmp_content".toByteArray()
+        cache.put("song.lru_tmp_version2.bin", data)
+        assertTrue(cache.contains("song.lru_tmp_version2.bin"))
+
+        // Recreate cache to simulate app restart
+        val reloaded = LruAssetCache(cacheDir, maxSizeBytes = 2000L)
+        assertTrue("Valid asset containing .lru_tmp_ must be preserved across scan", reloaded.contains("song.lru_tmp_version2.bin"))
+        assertArrayEquals(data, reloaded.get("song.lru_tmp_version2.bin")?.readBytes())
+    }
+
+    @Test
+    fun preExistingOversizedFile_doesNotEvictSmallerValidFilesOnStartup() {
+        val cacheDir = tempFolder.newFolder("oversized_scan_cache")
+        val validFile = File(cacheDir, "valid_track.bin").apply {
+            writeBytes(ByteArray(200) { 1 })
+            setLastModified(1000L)
+        }
+        val oversizedFile = File(cacheDir, "giant_track.bin").apply {
+            writeBytes(ByteArray(1500) { 2 })
+            setLastModified(2000L)
+        }
+        assertTrue(validFile.exists())
+        assertTrue(oversizedFile.exists())
+
+        // Limit is 1000L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = 1000L)
+
+        // Oversized file (>1000L) cannot fit and must be purged
+        assertFalse(oversizedFile.exists())
+        assertFalse(cache.contains("giant_track.bin"))
+
+        // Valid file (200L <= 1000L) must NOT be evicted!
+        assertTrue("Valid file must not be evicted on startup scan by an oversized file", validFile.exists())
+        assertTrue(cache.contains("valid_track.bin"))
+        assertEquals(200L, cache.currentSize)
+        assertEquals(1, cache.entryCount)
+    }
+
+    @Test
+    fun putStream_oversizedStream_failsFastWithoutExhaustingDisk() {
+        val cacheDir = tempFolder.newFolder("stream_oversized_cache")
+        val maxLimit = 500L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = maxLimit)
+
+        // Cache a valid initial entry
+        val initialData = ByteArray(200) { 1 }
+        cache.put("track_initial", initialData)
+        assertEquals(200L, cache.currentSize)
+
+        // Try streaming 2000 bytes into a 500 byte cache
+        val hugeStreamData = ByteArray(2000) { 9 }
+        val stream = ByteArrayInputStream(hugeStreamData)
+        val resultFile = cache.putStream("stream_huge", stream)
+
+        // Result file must not exist and entry must not be in cache
+        assertFalse(cache.contains("stream_huge"))
+        assertFalse(resultFile.exists())
+
+        // Initial valid entry must be preserved untouched
+        assertTrue(cache.contains("track_initial"))
+        assertEquals(200L, cache.currentSize)
+        assertEquals(1, cache.entryCount)
+    }
+
+    @Test
+    fun putFile_oversizedFile_discardsWithoutCopying() {
+        val cacheDir = tempFolder.newFolder("file_oversized_cache")
+        val sourceDir = tempFolder.newFolder("source_dir")
+        val maxLimit = 500L
+        val cache = LruAssetCache(cacheDir, maxSizeBytes = maxLimit)
+
+        val largeSourceFile = File(sourceDir, "giant_source.bin").apply {
+            writeBytes(ByteArray(1500) { 3 })
+        }
+        assertTrue(largeSourceFile.exists())
+
+        val resultFile = cache.put("giant_source", largeSourceFile)
+        assertFalse(resultFile.exists())
+        assertFalse(cache.contains("giant_source"))
+        assertEquals(0L, cache.currentSize)
+        // Original source file must remain intact
+        assertTrue(largeSourceFile.exists())
+    }
+
+    @Test
+    fun mediaAssetCacheManager_fileCachingAndSingleEviction() {
+        val thumbDir = tempFolder.newFolder("mgr_file_thumbs")
+        val playbackDir = tempFolder.newFolder("mgr_file_playback")
+        val sourceDir = tempFolder.newFolder("mgr_source")
+
+        val manager = MediaAssetCacheManager(
+            thumbnailDir = thumbDir,
+            playbackDir = playbackDir,
+            thumbnailLimit = 500L,
+            playbackLimit = 1000L
+        )
+
+        val thumbSource = File(sourceDir, "thumb.jpg").apply {
+            writeBytes(ByteArray(200) { 1 })
+        }
+        val audioSource = File(sourceDir, "audio.mp3").apply {
+            writeBytes(ByteArray(400) { 2 })
+        }
+
+        manager.cacheThumbnailFile("song_thumb_1", thumbSource)
+        manager.cachePlaybackAssetFile("song_audio_1", audioSource)
+
+        assertTrue(manager.isThumbnailCached("song_thumb_1"))
+        assertTrue(manager.isPlaybackAssetCached("song_audio_1"))
+        assertEquals(200L, manager.currentThumbnailCacheSize)
+        assertEquals(400L, manager.currentPlaybackAssetCacheSize)
+
+        // Single LRU eviction
+        val evictedThumb = manager.evictSingleThumbnail()
+        assertEquals("song_thumb_1", evictedThumb)
+        assertFalse(manager.isThumbnailCached("song_thumb_1"))
+        assertEquals(0L, manager.currentThumbnailCacheSize)
+
+        val evictedAudio = manager.evictSinglePlaybackAsset()
+        assertEquals("song_audio_1", evictedAudio)
+        assertFalse(manager.isPlaybackAssetCached("song_audio_1"))
+        assertEquals(0L, manager.currentPlaybackAssetCacheSize)
+    }
 }

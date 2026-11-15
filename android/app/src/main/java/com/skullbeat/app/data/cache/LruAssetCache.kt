@@ -29,6 +29,7 @@ class LruAssetCache(
             "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"
         )
         private val ORPHANED_TMP_REGEX = Regex(".*\\.tmp_\\d+$")
+        private val ORPHANED_LRU_TMP_REGEX = Regex(".*\\.lru_tmp_[0-9a-fA-F-]+$")
     }
 
     data class CacheEntry(
@@ -96,7 +97,21 @@ class LruAssetCache(
             cacheDir.mkdirs()
         }
         val targetFile = getFileForKey(key)
-        val tempFile = File(cacheDir, "${targetFile.name}.lru_tmp_${UUID.randomUUID()}")
+        val size = bytes.size.toLong()
+
+        if (size > maxSizeBytes) {
+            lock.withLock {
+                val fileKey = targetFile.name
+                val oldEntry = entries.remove(fileKey)
+                if (oldEntry != null) {
+                    totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+                }
+                safeDelete(targetFile)
+            }
+            return targetFile
+        }
+
+        val tempFile = File(cacheDir, ".lru_tmp_${UUID.randomUUID()}")
 
         try {
             FileOutputStream(tempFile).use { fos ->
@@ -104,7 +119,6 @@ class LruAssetCache(
                 fos.flush()
             }
 
-            val size = tempFile.length()
             val now = System.currentTimeMillis()
 
             lock.withLock {
@@ -112,14 +126,6 @@ class LruAssetCache(
                 val oldEntry = entries[fileKey]
                 if (oldEntry != null) {
                     totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
-                }
-
-                if (size > maxSizeBytes) {
-                    entries.remove(fileKey)
-                    if (targetFile.exists()) {
-                        try { targetFile.delete() } catch (_: Exception) {}
-                    }
-                    return targetFile
                 }
 
                 replaceTargetFile(tempFile, targetFile)
@@ -139,9 +145,7 @@ class LruAssetCache(
 
             return targetFile
         } finally {
-            if (tempFile.exists()) {
-                try { tempFile.delete() } catch (_: Exception) {}
-            }
+            safeDelete(tempFile)
         }
     }
 
@@ -154,16 +158,36 @@ class LruAssetCache(
             cacheDir.mkdirs()
         }
         val targetFile = getFileForKey(key)
-        val tempFile = File(cacheDir, "${targetFile.name}.lru_tmp_${UUID.randomUUID()}")
+        val tempFile = File(cacheDir, ".lru_tmp_${UUID.randomUUID()}")
 
         try {
+            var totalWritten = 0L
+            var exceeded = false
+
             FileOutputStream(tempFile).use { fos ->
                 val buffer = ByteArray(8192)
                 var bytesRead: Int
                 while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    totalWritten += bytesRead
+                    if (totalWritten > maxSizeBytes) {
+                        exceeded = true
+                        break
+                    }
                     fos.write(buffer, 0, bytesRead)
                 }
                 fos.flush()
+            }
+
+            if (exceeded) {
+                lock.withLock {
+                    val fileKey = targetFile.name
+                    val oldEntry = entries.remove(fileKey)
+                    if (oldEntry != null) {
+                        totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+                    }
+                    safeDelete(targetFile)
+                }
+                return targetFile
             }
 
             val size = tempFile.length()
@@ -174,14 +198,6 @@ class LruAssetCache(
                 val oldEntry = entries[fileKey]
                 if (oldEntry != null) {
                     totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
-                }
-
-                if (size > maxSizeBytes) {
-                    entries.remove(fileKey)
-                    if (targetFile.exists()) {
-                        try { targetFile.delete() } catch (_: Exception) {}
-                    }
-                    return targetFile
                 }
 
                 replaceTargetFile(tempFile, targetFile)
@@ -201,9 +217,7 @@ class LruAssetCache(
 
             return targetFile
         } finally {
-            if (tempFile.exists()) {
-                try { tempFile.delete() } catch (_: Exception) {}
-            }
+            safeDelete(tempFile)
         }
     }
 
@@ -215,15 +229,32 @@ class LruAssetCache(
             cacheDir.mkdirs()
         }
         val targetFile = getFileForKey(key)
-        val isSameFile = sourceFile.absolutePath == targetFile.absolutePath
-        val tempFile = File(cacheDir, "${targetFile.name}.lru_tmp_${UUID.randomUUID()}")
+        val isSameFile = try {
+            sourceFile.canonicalPath == targetFile.canonicalPath
+        } catch (_: Exception) {
+            sourceFile.absolutePath == targetFile.absolutePath
+        }
+        val size = if (isSameFile) targetFile.length() else sourceFile.length()
+
+        if (size > maxSizeBytes) {
+            lock.withLock {
+                val fileKey = targetFile.name
+                val oldEntry = entries.remove(fileKey)
+                if (oldEntry != null) {
+                    totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
+                }
+                safeDelete(targetFile)
+            }
+            return targetFile
+        }
+
+        val tempFile = File(cacheDir, ".lru_tmp_${UUID.randomUUID()}")
 
         try {
             if (!isSameFile) {
                 sourceFile.copyTo(tempFile, overwrite = true)
             }
 
-            val size = if (isSameFile) targetFile.length() else tempFile.length()
             val now = System.currentTimeMillis()
 
             lock.withLock {
@@ -231,14 +262,6 @@ class LruAssetCache(
                 val oldEntry = entries[fileKey]
                 if (oldEntry != null) {
                     totalSizeBytes = (totalSizeBytes - oldEntry.sizeBytes).coerceAtLeast(0L)
-                }
-
-                if (size > maxSizeBytes) {
-                    entries.remove(fileKey)
-                    if (targetFile.exists()) {
-                        try { targetFile.delete() } catch (_: Exception) {}
-                    }
-                    return targetFile
                 }
 
                 if (!isSameFile) {
@@ -260,9 +283,7 @@ class LruAssetCache(
 
             return targetFile
         } finally {
-            if (tempFile.exists()) {
-                try { tempFile.delete() } catch (_: Exception) {}
-            }
+            safeDelete(tempFile)
         }
     }
 
@@ -310,11 +331,7 @@ class LruAssetCache(
         lock.withLock {
             val entry = entries.remove(fileKey) ?: return false
             totalSizeBytes = (totalSizeBytes - entry.sizeBytes).coerceAtLeast(0L)
-            if (entry.file.exists()) {
-                try {
-                    entry.file.delete()
-                } catch (_: Exception) {}
-            }
+            safeDelete(entry.file)
             return true
         }
     }
@@ -325,11 +342,7 @@ class LruAssetCache(
     fun clear() {
         lock.withLock {
             entries.values.forEach { entry ->
-                if (entry.file.exists()) {
-                    try {
-                        entry.file.delete()
-                    } catch (_: Exception) {}
-                }
+                safeDelete(entry.file)
             }
             entries.clear()
             totalSizeBytes = 0L
@@ -350,11 +363,7 @@ class LruAssetCache(
             val mapKey = lruEntry.file.name
             entries.remove(mapKey)
             totalSizeBytes = (totalSizeBytes - lruEntry.sizeBytes).coerceAtLeast(0L)
-            if (lruEntry.file.exists()) {
-                try {
-                    lruEntry.file.delete()
-                } catch (_: Exception) {}
-            }
+            safeDelete(lruEntry.file)
             return lruEntry.key
         }
     }
@@ -378,14 +387,21 @@ class LruAssetCache(
             val mapKey = lruEntry.file.name
             entries.remove(mapKey)
             totalSizeBytes = (totalSizeBytes - lruEntry.sizeBytes).coerceAtLeast(0L)
-            if (lruEntry.file.exists()) {
-                try {
-                    lruEntry.file.delete()
-                } catch (_: Exception) {}
-            }
+            safeDelete(lruEntry.file)
             evictedKeys.add(lruEntry.key)
         }
         return evictedKeys
+    }
+
+    private fun safeDelete(file: File) {
+        if (!file.exists()) return
+        try {
+            if (!file.delete()) {
+                file.deleteOnExit()
+            }
+        } catch (_: Exception) {
+            try { file.deleteOnExit() } catch (_: Exception) {}
+        }
     }
 
     private fun replaceTargetFile(tempFile: File, targetFile: File) {
@@ -406,16 +422,10 @@ class LruAssetCache(
                 StandardCopyOption.REPLACE_EXISTING
             )
         } catch (_: Exception) {
-            if (targetFile.exists()) {
-                try {
-                    targetFile.delete()
-                } catch (_: Exception) {}
-            }
+            safeDelete(targetFile)
             if (!tempFile.renameTo(targetFile)) {
                 tempFile.copyTo(targetFile, overwrite = true)
-                try {
-                    tempFile.delete()
-                } catch (_: Exception) {}
+                safeDelete(tempFile)
             }
         }
     }
@@ -447,14 +457,17 @@ class LruAssetCache(
         val files = cacheDir.listFiles()?.sortedBy { it.lastModified() } ?: return
         for (f in files) {
             if (!f.isFile) continue
-            if (f.name.startsWith(".lru_tmp_") || f.name.contains(".lru_tmp_") || ORPHANED_TMP_REGEX.matches(f.name)) {
-                try {
-                    f.delete()
-                } catch (_: Exception) {}
+            if (f.name.startsWith(".lru_tmp_") || ORPHANED_LRU_TMP_REGEX.matches(f.name) || ORPHANED_TMP_REGEX.matches(f.name)) {
+                safeDelete(f)
+                continue
+            }
+            val size = f.length()
+            if (size > maxSizeBytes) {
+                // Oversized file exceeds capacity limit; purge to protect valid cache entries
+                safeDelete(f)
                 continue
             }
             val key = f.name
-            val size = f.length()
             val lastModified = f.lastModified()
             entries[key] = CacheEntry(
                 key = key,

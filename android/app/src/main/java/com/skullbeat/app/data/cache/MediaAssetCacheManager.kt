@@ -48,15 +48,23 @@ class MediaAssetCacheManager(
 
     fun cacheThumbnailStream(videoId: String, stream: InputStream): File = thumbnailCache.putStream(videoId, stream)
 
+    fun cacheThumbnailFile(videoId: String, file: File): File = thumbnailCache.put(videoId, file)
+
     fun getCachedPlaybackAsset(videoId: String): File? = playbackAssetCache.get(videoId)
 
     fun cachePlaybackAsset(videoId: String, bytes: ByteArray): File = playbackAssetCache.put(videoId, bytes)
 
     fun cachePlaybackAssetStream(videoId: String, stream: InputStream): File = playbackAssetCache.putStream(videoId, stream)
 
+    fun cachePlaybackAssetFile(videoId: String, file: File): File = playbackAssetCache.put(videoId, file)
+
     fun isThumbnailCached(videoId: String): Boolean = thumbnailCache.contains(videoId)
 
     fun isPlaybackAssetCached(videoId: String): Boolean = playbackAssetCache.contains(videoId)
+
+    fun evictSingleThumbnail(): String? = thumbnailCache.evictSingleLru()
+
+    fun evictSinglePlaybackAsset(): String? = playbackAssetCache.evictSingleLru()
 
     fun touchThumbnail(videoId: String, timestampMs: Long = System.currentTimeMillis()) {
         thumbnailCache.touch(videoId, timestampMs)
