@@ -9,12 +9,17 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import java.io.File
 import com.skullbeat.app.data.extractor.YouTubeExtractor
 import com.skullbeat.app.data.storage.PlayerSettings
 import com.skullbeat.app.data.storage.RepeatState
@@ -56,8 +61,9 @@ class PlayerManager @Inject constructor(
 
     val exoPlayer: ExoPlayer by lazy {
         val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+        val defaultDataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
         val resolvingFactory = ResolvingDataSource.Factory(
-            DefaultDataSource.Factory(context, httpDataSourceFactory),
+            defaultDataSourceFactory,
             object : ResolvingDataSource.Resolver {
                 override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                     val uri = dataSpec.uri
@@ -66,14 +72,23 @@ class PlayerManager @Inject constructor(
                         val streamUrl = runBlocking(Dispatchers.IO) {
                             extractor.resolveStreamUrl(videoId)
                         }
-                        return dataSpec.buildUpon().setUri(Uri.parse(streamUrl)).build()
+                        return dataSpec.buildUpon()
+                            .setKey("audio_$videoId")
+                            .setUri(Uri.parse(streamUrl))
+                            .build()
                     }
                     return dataSpec
                 }
             }
         )
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(resolvingFactory)
+        val playbackCache = getPlaybackCache(context)
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(playbackCache)
+            .setUpstreamDataSourceFactory(resolvingFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(cacheDataSourceFactory)
 
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -642,5 +657,24 @@ class PlayerManager @Inject constructor(
         } catch (_: Exception) {
         }
         exoPlayer.release()
+    }
+
+    companion object {
+        @Volatile
+        private var sharedPlaybackCache: SimpleCache? = null
+
+        fun getPlaybackCache(context: Context): SimpleCache {
+            return sharedPlaybackCache ?: synchronized(this) {
+                sharedPlaybackCache ?: run {
+                    val cacheDir = File(context.cacheDir, "playback_assets")
+                    if (!cacheDir.exists()) cacheDir.mkdirs()
+                    val evictor = LeastRecentlyUsedCacheEvictor(1024L * 1024 * 1024L) // 1GB Limit
+                    val databaseProvider = StandaloneDatabaseProvider(context)
+                    SimpleCache(cacheDir, evictor, databaseProvider).also {
+                        sharedPlaybackCache = it
+                    }
+                }
+            }
+        }
     }
 }

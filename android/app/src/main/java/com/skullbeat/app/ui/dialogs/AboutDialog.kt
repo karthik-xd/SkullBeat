@@ -49,10 +49,14 @@ fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val updates = listOf(
+        "New Songs Added to Top of Playlist" to "Songs added manually now appear at the top of the playlist for instant access. Bulk imports still append in album order at the bottom.",
+        "Remove from Queue Feedback" to "Swipe left to remove a song from queue now shows 'Not in queue' if it was already not queued, so you always know what happened.",
+        "Delete Playlist Confirmation" to "Deleted playlist now shows a confirmation dialog to prevent accidental deletes.",
+        "Auto-Scroll on Song Add" to "Playlist screen auto-scrolls to the top when a new song is added so you can see it immediately.",
         "Bidirectional Swipe in Playlist" to "Slide right (Electric Blue to Cyan) to add to queue; slide left (Heart Red to Coral) to remove from queue with instant tactile feedback.",
         "Brand-Matched App Launcher Icon" to "Updated launcher icon with the official theme electric-blue gradient and bone-white skull symbol, plus adaptive and Material You themed icon support.",
         "Fixed Fast-Scrolling Playlist Crash" to "Replaced non-unique item keys with composite indexed keys, eliminated subcomposition drag delays, and isolated progress ticker recompositions.",
-        "Smooth 60fps Thumbnail Caching" to "Coil image loader configured with 25% heap memory cache, 50MB disk cache, and 144x144 thumbnail downsampling for silky-smooth flings.",
+        "Fixed Storage Limits & LRU Asset Caching" to "Local disk caching for thumbnails (250MB) and audio playback assets (1GB) with item-by-item Least Recently Used (LRU) eviction for instant replays.",
         "Direct Playlist Photo Cover" to "Tap playlist cover to open quick options sheet, select any local photo from gallery, and automatically crop and persist in app storage.",
         "Fixed Swipe-to-Queue Overlap" to "Track rows have 100% solid opaque background with zero bleed-through or text overlap. Supports bidirectional swipe, spring back, and tactile haptic feedback.",
         "Custom Playlist Photo Covers" to "Select from gallery or snap a photo with camera for playlist covers with automatic 1:1 center-cropping and fast WebP compression.",
@@ -103,7 +107,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.6 (Build 9)",
+                                text = "Version 1.2.7 (Build 10)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ElectricBlue
                             )

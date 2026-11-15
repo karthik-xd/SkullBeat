@@ -24,8 +24,8 @@ class SkullBeatApp : Application(), ImageLoaderFactory {
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50L * 1024 * 1024)
+                    .directory(cacheDir.resolve("thumbnail_cache"))
+                    .maxSizeBytes(250L * 1024 * 1024) // 250MB fixed thumbnail cache limit
                     .build()
             }
             .respectCacheHeaders(false)
