@@ -49,6 +49,7 @@ fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val updates = listOf(
+        "Brand-Matched App Launcher Icon" to "Updated launcher icon with the official theme electric-blue gradient and bone-white skull symbol, plus adaptive and Material You themed icon support.",
         "Fixed Fast-Scrolling Playlist Crash" to "Replaced non-unique item keys with composite indexed keys, eliminated subcomposition drag delays, and isolated progress ticker recompositions.",
         "Smooth 60fps Thumbnail Caching" to "Coil image loader configured with 25% heap memory cache, 50MB disk cache, and 144x144 thumbnail downsampling for silky-smooth flings.",
         "Direct Playlist Photo Cover" to "Tap playlist cover to open quick options sheet, select any local photo from gallery, and automatically crop and persist in app storage.",
@@ -101,7 +102,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.4 (Build 7)",
+                                text = "Version 1.2.5 (Build 8)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ElectricBlue
                             )
