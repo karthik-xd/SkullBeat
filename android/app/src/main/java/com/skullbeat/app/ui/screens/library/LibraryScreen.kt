@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,13 +22,17 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
@@ -74,6 +79,7 @@ import com.skullbeat.app.ui.theme.RaisedDark
 import com.skullbeat.app.ui.theme.SurfaceDark
 import com.skullbeat.app.ui.theme.TextBone
 import com.skullbeat.app.ui.theme.TextMuted
+import com.skullbeat.app.ui.theme.WarningYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,14 +166,17 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Tabs: All | Liked | Playlists | History
+        // Tabs: All | Liked | Downloads | Playlists | History
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val tabs = listOf(
                 LibraryTab.ALL to "All",
                 LibraryTab.LIKED to "Liked",
+                LibraryTab.DOWNLOADS to "Downloads",
                 LibraryTab.PLAYLISTS to "Playlists",
                 LibraryTab.HISTORY to "History"
             )
@@ -200,42 +209,26 @@ fun LibraryScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedTab == LibraryTab.PLAYLISTS) {
-            // Playlists Tab
-            if (playlists.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "No playlists yet",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = TextBone
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Tap '+' to create or import a playlist",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextMuted
-                        )
-                    }
+            // Playlists Tab - always show Downloads shortcut card first
+            val downloadedList by viewModel.downloadedTracks.collectAsState()
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item(key = "downloads_playlist_shortcut") {
+                    DownloadsShortcutCard(
+                        trackCount = downloadedList.size,
+                        onClick = { viewModel.selectTab(LibraryTab.DOWNLOADS) }
+                    )
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 120.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(playlists, key = { "pl_${it.id}" }) { playlist ->
-                        PlaylistCard(
-                            playlist = playlist,
-                            onClick = { onPlaylistClick(playlist.id) }
-                        )
-                    }
+                items(playlists, key = { "pl_${it.id}" }) { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        onClick = { onPlaylistClick(playlist.id) }
+                    )
                 }
             }
         } else {
@@ -419,7 +412,11 @@ fun LibraryScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = if (selectedTab == LibraryTab.LIKED) "No liked songs found" else "No tracks match your filter",
+                            text = when (selectedTab) {
+                                LibraryTab.LIKED -> "No liked songs found"
+                                LibraryTab.DOWNLOADS -> "No downloaded songs yet"
+                                else -> "No tracks match your filter"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextMuted
                         )
@@ -451,6 +448,7 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filteredTracks, key = { "lib_${it.videoId}" }) { track ->
+                        val isMissing = selectedTab == LibraryTab.DOWNLOADS && viewModel.isDownloadMissing(track.videoId)
                         SwipeToQueueBox(
                             onSwipeToQueue = {
                                 viewModel.addToQueue(track)
@@ -476,6 +474,13 @@ fun LibraryScreen(
                             LibraryTrackRow(
                                 track = track,
                                 isCurrentTrack = playbackState.currentTrack?.videoId == track.videoId,
+                                isMissing = isMissing,
+                                onDelete = if (selectedTab == LibraryTab.DOWNLOADS) {
+                                    {
+                                        viewModel.deleteDownloadedTrack(track.videoId)
+                                        Toast.makeText(context, "Removed from downloads: ${track.title}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else null,
                                 onClick = { onTrackClick(track, filteredTracks) },
                                 onArtistClick = onArtistClick
                             )
@@ -573,6 +578,8 @@ fun LibraryScreen(
 private fun LibraryTrackRow(
     track: Track,
     isCurrentTrack: Boolean,
+    isMissing: Boolean = false,
+    onDelete: (() -> Unit)? = null,
     onClick: () -> Unit,
     onArtistClick: (String) -> Unit
 ) {
@@ -605,24 +612,55 @@ private fun LibraryTrackRow(
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = 15.sp,
                     fontWeight = if (isCurrentTrack) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (isCurrentTrack) ElectricBlue else TextBone
+                    color = when {
+                        isMissing -> WarningYellow
+                        isCurrentTrack -> ElectricBlue
+                        else -> TextBone
+                    }
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${track.artist} • ${track.album.ifBlank { "Single" }}",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 13.sp,
-                    color = TextMuted
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isMissing) {
+                    Text(
+                        text = "Missing from storage • ",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WarningYellow
+                        )
+                    )
+                }
+                Text(
+                    text = "${track.artist} • ${track.album.ifBlank { "Single" }}",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 13.sp,
+                        color = TextMuted
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))
+
+        if (onDelete != null) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Remove download",
+                    tint = TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
 
         Text(
             text = track.durationFormatted.ifBlank { "" },
@@ -716,6 +754,53 @@ private fun PlaylistCard(
         Text(
             text = "Playlist",
             style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
+        )
+    }
+}
+
+@Composable
+private fun DownloadsShortcutCard(
+    trackCount: Int,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceDark)
+            .clickable(onClick = onClick)
+            .padding(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(HighlightGradient),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Download,
+                contentDescription = "Downloads",
+                tint = TextBone,
+                modifier = Modifier.size(44.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Downloads",
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = TextBone,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = if (trackCount == 1) "1 song • Offline" else "$trackCount songs • Offline",
+            style = MaterialTheme.typography.bodySmall.copy(color = CyanAccent),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

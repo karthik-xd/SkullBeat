@@ -54,4 +54,7 @@ interface MusicRepository {
 
     suspend fun backupLibrary(): Boolean
     suspend fun restoreLibrary(): Int
+
+    fun getDownloadedTracks(): Flow<List<com.skullbeat.app.domain.models.DownloadedTrack>>
+    suspend fun deleteDownloadedTrack(videoId: String)
 }

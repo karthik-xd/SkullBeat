@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
@@ -84,6 +85,7 @@ import kotlinx.coroutines.launch
 import com.skullbeat.app.ui.components.SkullPlayButton
 import com.skullbeat.app.ui.components.TrackListItem
 import com.skullbeat.app.ui.theme.BgDark
+import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.HeartRed
 import com.skullbeat.app.ui.theme.RaisedDark
@@ -107,6 +109,18 @@ fun NowPlayingSheet(
     val isFavorite by viewModel.isFavorite.collectAsState()
 
     val track = playbackState.currentTrack ?: return
+
+    val db = remember { com.skullbeat.app.di.DatabaseModule.provideAppDatabase(context) }
+    val downloadManager = remember {
+        com.skullbeat.app.download.DownloadedTracksManager.getInstance(
+            context,
+            db.downloadedTrackDao(),
+            db.trackDao()
+        )
+    }
+    val activeDownloads by downloadManager.activeDownloads.collectAsState()
+    val isDownloading = activeDownloads.contains(track.videoId)
+    val isDownloaded = downloadManager.isDownloaded(track.videoId)
 
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
@@ -313,6 +327,8 @@ fun NowPlayingSheet(
                         )
 
                         BottomActionsRow(
+                            isDownloading = isDownloading,
+                            isDownloaded = isDownloaded,
                             onDownload = { onDownload(track) },
                             onOpenLyrics = { onOpenLyrics(track) },
                             onOpenQueue = { showQueueSheet = true }
@@ -397,6 +413,8 @@ fun NowPlayingSheet(
 
                     // Bottom Action Row: Download | Lyrics | Queue
                     BottomActionsRow(
+                        isDownloading = isDownloading,
+                        isDownloaded = isDownloaded,
                         onDownload = { onDownload(track) },
                         onOpenLyrics = { onOpenLyrics(track) },
                         onOpenQueue = { showQueueSheet = true }
@@ -852,6 +870,8 @@ private fun LoopControlButton(
 
 @Composable
 private fun BottomActionsRow(
+    isDownloading: Boolean,
+    isDownloaded: Boolean,
     onDownload: () -> Unit,
     onOpenLyrics: () -> Unit,
     onOpenQueue: () -> Unit,
@@ -865,18 +885,33 @@ private fun BottomActionsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         ActionTextButton(
-            icon = Icons.Default.Download,
-            label = "Download",
+            icon = when {
+                isDownloading -> Icons.Default.Close
+                isDownloaded -> Icons.Default.DownloadDone
+                else -> Icons.Default.Download
+            },
+            label = when {
+                isDownloading -> "Cancel"
+                isDownloaded -> "Saved"
+                else -> "Download"
+            },
+            tint = when {
+                isDownloading -> ElectricBlue
+                isDownloaded -> CyanAccent
+                else -> TextBone
+            },
             onClick = onDownload
         )
         ActionTextButton(
             icon = Icons.Default.Lyrics,
             label = "Lyrics",
+            tint = TextBone,
             onClick = onOpenLyrics
         )
         ActionTextButton(
             icon = Icons.Default.QueueMusic,
             label = "Queue",
+            tint = TextBone,
             onClick = onOpenQueue
         )
     }
@@ -886,6 +921,7 @@ private fun BottomActionsRow(
 private fun ActionTextButton(
     icon: ImageVector,
     label: String,
+    tint: Color = TextBone,
     onClick: () -> Unit
 ) {
     Column(
@@ -898,14 +934,14 @@ private fun ActionTextButton(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = TextMuted,
+            tint = tint,
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-            color = TextMuted
+            color = tint
         )
     }
 }

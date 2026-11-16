@@ -3,6 +3,7 @@ package com.skullbeat.app.di
 import android.content.Context
 import androidx.room.Room
 import com.skullbeat.app.data.db.AppDatabase
+import com.skullbeat.app.data.db.DownloadedTrackDao
 import com.skullbeat.app.data.db.FavoriteDao
 import com.skullbeat.app.data.db.HistoryDao
 import com.skullbeat.app.data.db.PlaylistDao
@@ -26,8 +27,10 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "skullbeat.db"
-        ).addMigrations(AppDatabase.MIGRATION_1_2)
-            .build()
+        ).addMigrations(
+            AppDatabase.MIGRATION_1_2,
+            AppDatabase.MIGRATION_2_3
+        ).build()
     }
 
     @Provides
@@ -44,4 +47,7 @@ object DatabaseModule {
 
     @Provides
     fun provideQueueDao(db: AppDatabase): QueueDao = db.queueDao()
+
+    @Provides
+    fun provideDownloadedTrackDao(db: AppDatabase): DownloadedTrackDao = db.downloadedTrackDao()
 }

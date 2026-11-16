@@ -112,13 +112,37 @@ fun SkullBeatNavHost(
     }
 
     fun enqueueDownload(track: Track) {
+        val db = com.skullbeat.app.di.DatabaseModule.provideAppDatabase(context)
+        val manager = com.skullbeat.app.download.DownloadedTracksManager.getInstance(
+            context,
+            db.downloadedTrackDao(),
+            db.trackDao()
+        )
+        if (manager.isDownloading(track.videoId)) {
+            manager.cancelDownload(track.videoId)
+            Toast.makeText(context, "Download cancelled: ${track.title}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (manager.isDownloaded(track.videoId)) {
+            Toast.makeText(context, "Already downloaded (Offline ready): ${track.title}", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        manager.markDownloadStarted(track.videoId)
+        Toast.makeText(context, "Starting download: ${track.title}", Toast.LENGTH_SHORT).show()
         val workData = Data.Builder()
             .putString(DownloadWorker.KEY_VIDEO_ID, track.videoId)
             .putString(DownloadWorker.KEY_TITLE, track.title)
             .putString(DownloadWorker.KEY_ARTIST, track.artist)
+            .putString(DownloadWorker.KEY_ALBUM, track.album)
+            .putLong(DownloadWorker.KEY_DURATION_SEC, track.durationSec)
+            .putString(DownloadWorker.KEY_DURATION_FORMATTED, track.durationFormatted)
+            .putString(DownloadWorker.KEY_THUMBNAIL_URL, track.thumbnailUrl)
             .build()
 
         val downloadWork = OneTimeWorkRequestBuilder<DownloadWorker>()
+            .addTag("download_${track.videoId}")
+            .addTag("download_all")
             .setInputData(workData)
             .build()
 

@@ -48,7 +48,8 @@ class PlayerManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val extractor: YouTubeExtractor,
-    private val repository: MusicRepository
+    private val repository: MusicRepository,
+    private val downloadedTracksManager: com.skullbeat.app.download.DownloadedTracksManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -69,6 +70,20 @@ class PlayerManager @Inject constructor(
                     val uri = dataSpec.uri
                     if (uri.scheme == "skullbeat") {
                         val videoId = uri.getQueryParameter("id") ?: uri.authority.orEmpty()
+
+                        // 1. Instant offline playback: check if downloaded locally
+                        val localPath = downloadedTracksManager.getLocalFilePath(videoId)
+                        if (localPath != null) {
+                            val localFile = File(localPath)
+                            if (localFile.exists() && localFile.length() > 0) {
+                                return dataSpec.buildUpon()
+                                    .setKey("audio_$videoId")
+                                    .setUri(Uri.fromFile(localFile))
+                                    .build()
+                            }
+                        }
+
+                        // 2. Stream online via YouTube extractor
                         val streamUrl = runBlocking(Dispatchers.IO) {
                             extractor.resolveStreamUrl(videoId)
                         }

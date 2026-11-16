@@ -49,6 +49,7 @@ fun AboutDialog(
     onDismiss: () -> Unit
 ) {
     val updates = listOf(
+        "Downloads, Instant Offline Replay & Cancel" to "Dedicated Downloads library tab. Cancel downloads anytime from notification or app. 64KB high-speed download buffers. Instant offline playback anywhere in the app with zero internet and zero disk lag. Missing storage detection in Warning Yellow.",
         "Persistent Liked Songs & Auto-Recovery" to "Never lose liked songs when updating. Safe non-destructive database migrations, automatic persistent offline JSON backup, and one-tap restore in Library.",
         "New Songs Added to Top of Playlist" to "Songs added manually now appear at the top of the playlist for instant access. Bulk imports still append in album order at the bottom.",
         "Remove from Queue Feedback" to "Swipe left to remove a song from queue now shows 'Not in queue' if it was already not queued, so you always know what happened.",
@@ -108,7 +109,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.8 (Build 11)",
+                                text = "Version 1.2.9 (Build 12)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ElectricBlue
                             )

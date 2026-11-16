@@ -3,12 +3,14 @@ package com.skullbeat.app.ui.screens.library
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.skullbeat.app.domain.models.DownloadedTrack
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
 import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.domain.util.FilterCriteria
 import com.skullbeat.app.domain.util.TrackExporter
 import com.skullbeat.app.domain.util.TrackFilter
+import com.skullbeat.app.download.DownloadedTracksManager
 import com.skullbeat.app.player.manager.PlaybackContextType
 import com.skullbeat.app.player.manager.PlayerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,14 +25,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class LibraryTab {
-    ALL, LIKED, PLAYLISTS, HISTORY
+    ALL, LIKED, DOWNLOADS, PLAYLISTS, HISTORY
 }
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: MusicRepository,
-    private val playerManager: PlayerManager
+    private val playerManager: PlayerManager,
+    private val downloadedTracksManager: DownloadedTracksManager
 ) : ViewModel() {
 
     private val _selectedTab = MutableStateFlow(LibraryTab.ALL)
@@ -45,6 +48,9 @@ class LibraryViewModel @Inject constructor(
     val favoriteTracks: StateFlow<List<Track>> = repository.getFavorites()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val downloadedTracks: StateFlow<List<DownloadedTrack>> = repository.getDownloadedTracks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val historyTracks: StateFlow<List<Track>> = repository.getHistory()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -53,25 +59,43 @@ class LibraryViewModel @Inject constructor(
 
     val playbackState = playerManager.playbackState
 
-    // Live filtered tracks based on active tab and filter criteria
-    val filteredTracks: StateFlow<List<Track>> = combine(
+    // Active track list based on selected tab
+    private val activeTabTracks: StateFlow<List<Track>> = combine(
         _selectedTab,
-        _filterCriteria,
         allTracks,
         favoriteTracks,
+        downloadedTracks,
         historyTracks
-    ) { tab, criteria, all, favs, hist ->
-        val sourceList = when (tab) {
+    ) { tab, all, favs, downloaded, hist ->
+        when (tab) {
             LibraryTab.ALL -> all
             LibraryTab.LIKED -> favs
+            LibraryTab.DOWNLOADS -> downloaded.map { it.toTrack() }
             LibraryTab.HISTORY -> hist
             LibraryTab.PLAYLISTS -> emptyList()
         }
-        TrackFilter.filter(sourceList, criteria)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Live filtered tracks based on active tab and filter criteria
+    val filteredTracks: StateFlow<List<Track>> = combine(
+        activeTabTracks,
+        _filterCriteria
+    ) { tracks, criteria ->
+        TrackFilter.filter(tracks, criteria)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun selectTab(tab: LibraryTab) {
         _selectedTab.value = tab
+    }
+
+    fun isDownloadMissing(videoId: String): Boolean {
+        return downloadedTracksManager.isDownloadMissing(videoId)
+    }
+
+    fun deleteDownloadedTrack(videoId: String) {
+        viewModelScope.launch {
+            repository.deleteDownloadedTrack(videoId)
+        }
     }
 
     fun updateFilterCriteria(criteria: FilterCriteria) {
@@ -89,6 +113,7 @@ class LibraryViewModel @Inject constructor(
     fun playTrack(track: Track, list: List<Track>) {
         val contextType = when (_selectedTab.value) {
             LibraryTab.LIKED -> PlaybackContextType.PLAYLIST
+            LibraryTab.DOWNLOADS -> PlaybackContextType.PLAYLIST
             else -> PlaybackContextType.QUEUE
         }
         playerManager.playTrack(track, list, contextType)

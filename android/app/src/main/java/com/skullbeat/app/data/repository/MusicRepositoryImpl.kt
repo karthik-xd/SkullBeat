@@ -9,11 +9,13 @@ import com.skullbeat.app.data.storage.PlayerSettings
 import com.skullbeat.app.data.storage.RepeatState
 import com.skullbeat.app.data.storage.UserLibraryBackupManager
 import com.skullbeat.app.data.storage.UserPreferences
+import com.skullbeat.app.domain.models.DownloadedTrack
 import com.skullbeat.app.domain.models.Favorite
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
 import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.domain.util.TrackMatcher
+import com.skullbeat.app.download.DownloadedTracksManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +30,8 @@ class MusicRepositoryImpl @Inject constructor(
     private val extractor: YouTubeExtractor,
     private val spotifyScraper: SpotifyScraper,
     private val preferences: UserPreferences,
-    private val backupManager: UserLibraryBackupManager
+    private val backupManager: UserLibraryBackupManager,
+    private val downloadedTracksManager: DownloadedTracksManager
 ) : MusicRepository {
 
     init {
@@ -302,5 +305,13 @@ class MusicRepositoryImpl @Inject constructor(
             Log.d("MusicRepository", "Manual restore loaded ${backedUp.size} liked songs.")
         }
         backedUp.size
+    }
+
+    override fun getDownloadedTracks(): Flow<List<DownloadedTrack>> {
+        return downloadedTracksManager.getDownloadedTracksFlow()
+    }
+
+    override suspend fun deleteDownloadedTrack(videoId: String) = withContext(Dispatchers.IO) {
+        downloadedTracksManager.deleteDownloadedTrack(videoId)
     }
 }
