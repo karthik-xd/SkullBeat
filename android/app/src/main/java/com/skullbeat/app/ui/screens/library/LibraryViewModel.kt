@@ -106,6 +106,20 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun backupLibrary(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.backupLibrary()
+            onResult(result)
+        }
+    }
+
+    fun restoreLibrary(onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            val count = repository.restoreLibrary()
+            onResult(count)
+        }
+    }
+
     fun exportFilteredM3u() {
         val list = filteredTracks.value
         val content = TrackExporter.toM3u(list)

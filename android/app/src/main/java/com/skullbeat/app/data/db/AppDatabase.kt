@@ -33,7 +33,19 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE playlists ADD COLUMN coverPath TEXT DEFAULT NULL")
+                val cursor = db.query("PRAGMA table_info(playlists)")
+                var hasCoverPath = false
+                while (cursor.moveToNext()) {
+                    val nameIdx = cursor.getColumnIndex("name")
+                    if (nameIdx != -1 && cursor.getString(nameIdx) == "coverPath") {
+                        hasCoverPath = true
+                        break
+                    }
+                }
+                cursor.close()
+                if (!hasCoverPath) {
+                    db.execSQL("ALTER TABLE playlists ADD COLUMN coverPath TEXT")
+                }
             }
         }
     }

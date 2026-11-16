@@ -26,10 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -412,11 +414,35 @@ fun LibraryScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No tracks match your filter",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = if (selectedTab == LibraryTab.LIKED) "No liked songs found" else "No tracks match your filter",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted
+                        )
+                        if (selectedTab == LibraryTab.LIKED) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Restore from Offline Backup",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = ElectricBlue
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.restoreLibrary { count ->
+                                            val msg = if (count > 0) "Restored $count liked songs!" else "No backup file found"
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -508,6 +534,32 @@ fun LibraryScreen(
                     onClick = {
                         showAddMenuSheet = false
                         onOpenImport(true)
+                    }
+                )
+
+                AddMenuOption(
+                    icon = Icons.Default.Backup,
+                    title = "Backup Liked Songs",
+                    subtitle = "Save safe offline snapshot to storage",
+                    onClick = {
+                        showAddMenuSheet = false
+                        viewModel.backupLibrary { success ->
+                            val msg = if (success) "Liked songs safely backed up to storage!" else "Backup failed or no liked songs"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                AddMenuOption(
+                    icon = Icons.Default.SettingsBackupRestore,
+                    title = "Restore Liked Songs",
+                    subtitle = "Recover liked songs from offline backup",
+                    onClick = {
+                        showAddMenuSheet = false
+                        viewModel.restoreLibrary { count ->
+                            val msg = if (count > 0) "Restored $count liked songs!" else "No backup file found"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
 

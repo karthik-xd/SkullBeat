@@ -1,19 +1,23 @@
 package com.skullbeat.app.data.repository
 
+import android.util.Log
 import com.skullbeat.app.data.db.AppDatabase
 import com.skullbeat.app.data.extractor.YouTubeExtractor
 import com.skullbeat.app.data.network.SpotifyImportResult
 import com.skullbeat.app.data.network.SpotifyScraper
 import com.skullbeat.app.data.storage.PlayerSettings
 import com.skullbeat.app.data.storage.RepeatState
+import com.skullbeat.app.data.storage.UserLibraryBackupManager
 import com.skullbeat.app.data.storage.UserPreferences
 import com.skullbeat.app.domain.models.Favorite
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
 import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.domain.util.TrackMatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,8 +27,37 @@ class MusicRepositoryImpl @Inject constructor(
     private val db: AppDatabase,
     private val extractor: YouTubeExtractor,
     private val spotifyScraper: SpotifyScraper,
-    private val preferences: UserPreferences
+    private val preferences: UserPreferences,
+    private val backupManager: UserLibraryBackupManager
 ) : MusicRepository {
+
+    init {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                autoRestoreIfNeeded()
+            } catch (e: Exception) {
+                Log.e("MusicRepository", "Auto-restore check failed", e)
+            }
+        }
+    }
+
+    private suspend fun autoRestoreIfNeeded() {
+        val count = db.favoriteDao().getFavoriteCount()
+        if (count == 0) {
+            val backedUpTracks = backupManager.loadLikedSongsBackup()
+            if (backedUpTracks.isNotEmpty()) {
+                db.trackDao().insertTracks(backedUpTracks)
+                val favorites = backedUpTracks.map { Favorite(videoId = it.videoId) }
+                db.favoriteDao().addFavorites(favorites)
+                Log.d("MusicRepository", "Auto-restored ${backedUpTracks.size} liked songs from backup.")
+            }
+        } else {
+            val currentFavs = db.favoriteDao().getFavoriteTracks()
+            if (currentFavs.isNotEmpty()) {
+                backupManager.saveLikedSongsBackup(currentFavs)
+            }
+        }
+    }
 
     override suspend fun search(query: String): List<Track> {
         val results = extractor.searchSongs(query)
@@ -126,6 +159,12 @@ class MusicRepositoryImpl @Inject constructor(
             db.favoriteDao().removeFavorite(track.videoId)
         } else {
             db.favoriteDao().addFavorite(Favorite(videoId = track.videoId))
+        }
+        try {
+            val currentFavs = db.favoriteDao().getFavoriteTracks()
+            backupManager.saveLikedSongsBackup(currentFavs)
+        } catch (e: Exception) {
+            Log.e("MusicRepository", "Failed to update backup after toggleFavorite", e)
         }
     }
 
@@ -248,5 +287,20 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun setVolume(volume: Float) {
         preferences.setVolume(volume)
+    }
+
+    override suspend fun backupLibrary(): Boolean = withContext(Dispatchers.IO) {
+        val favs = db.favoriteDao().getFavoriteTracks()
+        backupManager.saveLikedSongsBackup(favs)
+    }
+
+    override suspend fun restoreLibrary(): Int = withContext(Dispatchers.IO) {
+        val backedUp = backupManager.loadLikedSongsBackup()
+        if (backedUp.isNotEmpty()) {
+            db.trackDao().insertTracks(backedUp)
+            db.favoriteDao().addFavorites(backedUp.map { Favorite(videoId = it.videoId) })
+            Log.d("MusicRepository", "Manual restore loaded ${backedUp.size} liked songs.")
+        }
+        backedUp.size
     }
 }

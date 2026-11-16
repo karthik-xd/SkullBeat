@@ -13,8 +13,14 @@ interface FavoriteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addFavorite(favorite: Favorite)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addFavorites(favorites: List<Favorite>)
+
     @Query("DELETE FROM favorites WHERE videoId = :videoId")
     suspend fun removeFavorite(videoId: String)
+
+    @Query("SELECT COUNT(*) FROM favorites")
+    suspend fun getFavoriteCount(): Int
 
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE videoId = :videoId)")
     fun isFavoriteFlow(videoId: String): Flow<Boolean>
@@ -24,4 +30,7 @@ interface FavoriteDao {
 
     @Query("SELECT t.* FROM tracks t INNER JOIN favorites f ON t.videoId = f.videoId ORDER BY f.addedAt DESC")
     fun getFavoriteTracksFlow(): Flow<List<Track>>
+
+    @Query("SELECT t.* FROM tracks t INNER JOIN favorites f ON t.videoId = f.videoId ORDER BY f.addedAt DESC")
+    suspend fun getFavoriteTracks(): List<Track>
 }

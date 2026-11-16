@@ -51,4 +51,7 @@ interface MusicRepository {
     suspend fun setShuffle(enabled: Boolean)
     suspend fun setRepeatMode(repeatState: RepeatState)
     suspend fun setVolume(volume: Float)
+
+    suspend fun backupLibrary(): Boolean
+    suspend fun restoreLibrary(): Int
 }
