@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -75,6 +76,7 @@ import com.skullbeat.app.domain.util.TimeUtils
 import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.HighlightGradient
+import com.skullbeat.app.ui.theme.SkullBeatTheme
 import com.skullbeat.app.ui.theme.RaisedDark
 import com.skullbeat.app.ui.theme.SurfaceDark
 import com.skullbeat.app.ui.theme.TextBone
@@ -91,6 +93,7 @@ fun LibraryScreen(
     onAddToPlaylist: (Track) -> Unit,
     onDownload: (Track) -> Unit,
     onOpenImport: (isCsv: Boolean) -> Unit = {},
+    onOpenThemeSelector: () -> Unit = {},
     viewModel: LibraryViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -128,6 +131,24 @@ fun LibraryScreen(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Theme Color Selector Button (Palette)
+                IconButton(
+                    onClick = onOpenThemeSelector,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(RaisedDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Palette,
+                        contentDescription = "Theme Color",
+                        tint = SkullBeatTheme.colors.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 // Add Feature Button (+)
                 IconButton(
                     onClick = { showAddMenuSheet = true },
@@ -139,7 +160,7 @@ fun LibraryScreen(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Add Feature",
-                        tint = ElectricBlue,
+                        tint = SkullBeatTheme.colors.primary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -187,7 +208,7 @@ fun LibraryScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
                         .then(
-                            if (isSelected) Modifier.background(HighlightGradient)
+                            if (isSelected) Modifier.background(SkullBeatTheme.colors.highlightGradient)
                             else Modifier.background(RaisedDark)
                         )
                         .clickable { viewModel.selectTab(tab) }
@@ -568,6 +589,16 @@ fun LibraryScreen(
                     }
                 )
 
+                AddMenuOption(
+                    icon = Icons.Default.Palette,
+                    title = "Theme Color",
+                    subtitle = "Switch between Cyan, Blue, Green, Purple, Red, Gold, or Classic",
+                    onClick = {
+                        showAddMenuSheet = false
+                        onOpenThemeSelector()
+                    }
+                )
+
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
@@ -614,7 +645,7 @@ private fun LibraryTrackRow(
                     fontWeight = if (isCurrentTrack) FontWeight.Bold else FontWeight.SemiBold,
                     color = when {
                         isMissing -> WarningYellow
-                        isCurrentTrack -> ElectricBlue
+                        isCurrentTrack -> MaterialTheme.colorScheme.primary
                         else -> TextBone
                     }
                 ),
@@ -776,7 +807,7 @@ private fun DownloadsShortcutCard(
                 .fillMaxWidth()
                 .height(110.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(HighlightGradient),
+                .background(SkullBeatTheme.colors.highlightGradient),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -798,7 +829,7 @@ private fun DownloadsShortcutCard(
         )
         Text(
             text = if (trackCount == 1) "1 song • Offline" else "$trackCount songs • Offline",
-            style = MaterialTheme.typography.bodySmall.copy(color = CyanAccent),
+            style = MaterialTheme.typography.bodySmall.copy(color = SkullBeatTheme.colors.secondary),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

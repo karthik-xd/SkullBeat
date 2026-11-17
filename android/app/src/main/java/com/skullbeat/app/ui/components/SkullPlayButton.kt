@@ -31,7 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.skullbeat.app.ui.theme.BgDark
-import com.skullbeat.app.ui.theme.PrimaryGradient
+import com.skullbeat.app.ui.theme.SkullBeatTheme
 import com.skullbeat.app.ui.theme.TextBone
 
 @Composable
@@ -60,7 +60,7 @@ fun SkullPlayButton(
             .size(size)
             .scale(scale)
             .clip(CircleShape)
-            .background(PrimaryGradient)
+            .background(SkullBeatTheme.colors.primaryGradient)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = rememberRipple(bounded = true, color = Color.White),

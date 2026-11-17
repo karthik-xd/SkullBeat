@@ -261,7 +261,7 @@ fun NowPlayingSheet(
                     Box(
                         modifier = Modifier
                             .size(180.dp)
-                            .shadow(elevation = 20.dp, shape = RoundedCornerShape(18.dp), spotColor = ElectricBlue)
+                            .shadow(elevation = 20.dp, shape = RoundedCornerShape(18.dp), spotColor = MaterialTheme.colorScheme.primary)
                             .clip(RoundedCornerShape(18.dp))
                             .background(SurfaceDark)
                             .clickable {
@@ -351,7 +351,7 @@ fun NowPlayingSheet(
                         modifier = Modifier
                             .fillMaxWidth(0.92f)
                             .aspectRatio(1f)
-                            .shadow(elevation = 28.dp, shape = RoundedCornerShape(20.dp), spotColor = ElectricBlue)
+                            .shadow(elevation = 28.dp, shape = RoundedCornerShape(20.dp), spotColor = MaterialTheme.colorScheme.primary)
                             .clip(RoundedCornerShape(20.dp))
                             .background(SurfaceDark)
                             .clickable {
@@ -475,7 +475,7 @@ fun NowPlayingSheet(
                         Text(
                             text = "Now Playing",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = ElectricBlue
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         if (track != null) {
@@ -677,8 +677,8 @@ private fun SeekBarControl(
             onValueChangeFinished = onSeekFinished,
             valueRange = 0f..maxOf(totalMs.toFloat(), 1f),
             colors = SliderDefaults.colors(
-                thumbColor = ElectricBlue,
-                activeTrackColor = ElectricBlue,
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
                 inactiveTrackColor = RaisedDark
             ),
             modifier = Modifier.fillMaxWidth()
@@ -733,7 +733,7 @@ private fun PlaybackButtonsRow(
             Icon(
                 imageVector = Icons.Default.Shuffle,
                 contentDescription = "Shuffle",
-                tint = if (isShuffle) ElectricBlue else TextMuted,
+                tint = if (isShuffle) MaterialTheme.colorScheme.primary else TextMuted,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -754,7 +754,7 @@ private fun PlaybackButtonsRow(
             modifier = Modifier.shadow(
                 elevation = 24.dp,
                 shape = CircleShape,
-                spotColor = ElectricBlue
+                spotColor = MaterialTheme.colorScheme.primary
             )
         ) {
             SkullPlayButton(
@@ -836,7 +836,7 @@ private fun LoopControlButton(
                 LoopMode.ONE_TIME -> Icons.Default.RepeatOne
                 else -> Icons.Default.Repeat
             }
-            val tint = if (isActive) ElectricBlue else TextMuted
+            val tint = if (isActive) MaterialTheme.colorScheme.primary else TextMuted
 
             Icon(
                 imageVector = icon,
@@ -853,7 +853,7 @@ private fun LoopControlButton(
                         .padding(top = 0.dp, end = 0.dp)
                         .size(14.dp)
                         .clip(CircleShape)
-                        .background(ElectricBlue),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -896,8 +896,8 @@ private fun BottomActionsRow(
                 else -> "Download"
             },
             tint = when {
-                isDownloading -> ElectricBlue
-                isDownloaded -> CyanAccent
+                isDownloading -> MaterialTheme.colorScheme.primary
+                isDownloaded -> MaterialTheme.colorScheme.secondary
                 else -> TextBone
             },
             onClick = onDownload

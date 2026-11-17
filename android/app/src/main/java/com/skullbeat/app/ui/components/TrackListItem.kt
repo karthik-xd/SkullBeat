@@ -111,7 +111,7 @@ fun TrackListItem(
                 Text(
                     text = track.title,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = if (isCurrentTrack) ElectricBlue else TextBone,
+                        color = if (isCurrentTrack) MaterialTheme.colorScheme.primary else TextBone,
                         fontWeight = if (isCurrentTrack) FontWeight.Bold else FontWeight.Medium
                     ),
                     maxLines = 1,

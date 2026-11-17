@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -46,9 +47,11 @@ import com.skullbeat.app.ui.theme.TextMuted
 
 @Composable
 fun AboutDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenThemeSelector: (() -> Unit)? = null
 ) {
     val updates = listOf(
+        "Selectable App Theme Colors" to "Choose your style: Classic SkullBeat, Cyber Cyan, Sapphire Blue, Matrix Green, Neon Violet, Crimson Skull, or Sunset Gold. Shown on first startup and selectable anytime from Home, Library, or Settings.",
         "Downloads, Instant Offline Replay & Cancel" to "Dedicated Downloads library tab. Cancel downloads anytime from notification or app. 64KB high-speed download buffers. Instant offline playback anywhere in the app with zero internet and zero disk lag. Missing storage detection in Warning Yellow.",
         "Persistent Liked Songs & Auto-Recovery" to "Never lose liked songs when updating. Safe non-destructive database migrations, automatic persistent offline JSON backup, and one-tap restore in Library.",
         "New Songs Added to Top of Playlist" to "Songs added manually now appear at the top of the playlist for instant access. Bulk imports still append in album order at the bottom.",
@@ -109,9 +112,9 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.2.9 (Build 12)",
+                                text = "Version 1.3.0 (Build 13)",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = ElectricBlue
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -186,9 +189,26 @@ fun AboutDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
+                if (onOpenThemeSelector != null) {
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onOpenThemeSelector()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Change Theme Color", color = TextBone, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (onOpenThemeSelector != null) RaisedDark else MaterialTheme.colorScheme.primary
+                    ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {

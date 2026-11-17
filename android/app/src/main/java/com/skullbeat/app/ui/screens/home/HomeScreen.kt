@@ -20,6 +20,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,6 +64,7 @@ fun HomeScreen(
     onAddToPlaylist: (Track) -> Unit,
     onDownload: (Track) -> Unit,
     onPlaylistClick: (Long) -> Unit = {},
+    onOpenThemeSelection: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -102,18 +106,38 @@ fun HomeScreen(
                     color = TextBone
                 )
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(RaisedDark)
-                        .clickable { showAboutDialog = true }
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "v1.2.1",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = ElectricBlue
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(RaisedDark)
+                            .clickable { onOpenThemeSelection() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Theme Color",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(RaisedDark)
+                            .clickable { showAboutDialog = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = "v1.3.0",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(18.dp))
@@ -249,7 +273,10 @@ fun HomeScreen(
     }
 
     if (showAboutDialog) {
-        AboutDialog(onDismiss = { showAboutDialog = false })
+        AboutDialog(
+            onDismiss = { showAboutDialog = false },
+            onOpenThemeSelector = onOpenThemeSelection
+        )
     }
 }
 

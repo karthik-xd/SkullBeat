@@ -82,7 +82,7 @@ fun MiniPlayer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.dp),
-                color = ElectricBlue,
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = RaisedDark
             )
 

@@ -10,12 +10,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.player.manager.PlayerManager
 import com.skullbeat.app.player.service.PlaybackService
 import com.skullbeat.app.ui.navigation.SkullBeatNavHost
+import com.skullbeat.app.ui.theme.AppThemePresets
 import com.skullbeat.app.ui.theme.BgDark
 import com.skullbeat.app.ui.theme.SkullBeatTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -50,7 +54,10 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SkullBeatTheme {
+            val themeKey by repository.themeColor.collectAsState(initial = "default")
+            val themePreset = remember(themeKey) { AppThemePresets.fromKey(themeKey) }
+
+            SkullBeatTheme(themePreset = themePreset) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = BgDark

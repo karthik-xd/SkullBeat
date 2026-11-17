@@ -64,6 +64,7 @@ import com.skullbeat.app.ui.dialogs.CreateEditPlaylistDialog
 import com.skullbeat.app.ui.dialogs.ImportDialog
 import com.skullbeat.app.ui.dialogs.ImportTab
 import com.skullbeat.app.ui.dialogs.LyricsDialog
+import com.skullbeat.app.ui.dialogs.ThemeSelectionDialog
 import com.skullbeat.app.ui.screens.artist.ArtistScreen
 import com.skullbeat.app.ui.screens.home.HomeScreen
 import com.skullbeat.app.ui.screens.library.LibraryScreen
@@ -73,6 +74,7 @@ import com.skullbeat.app.ui.screens.search.SearchScreen
 import com.skullbeat.app.ui.screens.splash.SplashScreen
 import kotlinx.coroutines.delay
 import com.skullbeat.app.ui.theme.BgDark
+import com.skullbeat.app.ui.theme.SkullBeatTheme
 import com.skullbeat.app.ui.theme.HighlightGradient
 import com.skullbeat.app.ui.theme.RaisedDark
 import com.skullbeat.app.ui.theme.SurfaceDark
@@ -106,9 +108,22 @@ fun SkullBeatNavHost(
     var isNowPlayingOpen by remember { mutableStateOf(false) }
     var isSplashVisible by remember { mutableStateOf(true) }
 
+    val currentThemeKey by repository.themeColor.collectAsState(initial = "default")
+    val hasSelectedThemeOnce by repository.hasSelectedThemeOnce.collectAsState(initial = true)
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var isThemeInitialStart by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         delay(1300)
         isSplashVisible = false
+    }
+
+    // Show theme selector on very first startup after splash screen
+    LaunchedEffect(hasSelectedThemeOnce, isSplashVisible) {
+        if (!isSplashVisible && !hasSelectedThemeOnce) {
+            isThemeInitialStart = true
+            showThemeDialog = true
+        }
     }
 
     fun enqueueDownload(track: Track) {
@@ -242,7 +257,11 @@ fun SkullBeatNavHost(
                         onArtistClick = { artist -> navController.navigate(Screen.Artist.createRoute(artist)) },
                         onAddToPlaylist = { track -> selectedTrackForPlaylist = track },
                         onDownload = { track -> enqueueDownload(track) },
-                        onPlaylistClick = { id -> navController.navigate(Screen.PlaylistDetail.createRoute(id)) }
+                        onPlaylistClick = { id -> navController.navigate(Screen.PlaylistDetail.createRoute(id)) },
+                        onOpenThemeSelection = {
+                            isThemeInitialStart = false
+                            showThemeDialog = true
+                        }
                     )
                 }
 
@@ -270,6 +289,10 @@ fun SkullBeatNavHost(
                         onOpenImport = { isCsv ->
                             importTabToOpen = if (isCsv) ImportTab.CSV else ImportTab.LINK
                             importUrlToOpen = ""
+                        },
+                        onOpenThemeSelector = {
+                            isThemeInitialStart = false
+                            showThemeDialog = true
                         }
                     )
                 }
@@ -454,6 +477,29 @@ fun SkullBeatNavHost(
             )
         }
 
+        // Theme Selection Dialog (First startup or manually opened inside app)
+        if (showThemeDialog) {
+            ThemeSelectionDialog(
+                currentThemeKey = currentThemeKey,
+                isInitialStart = isThemeInitialStart,
+                onDismiss = {
+                    showThemeDialog = false
+                    if (isThemeInitialStart) {
+                        coroutineScope.launch {
+                            repository.markThemeSelectedOnce()
+                        }
+                    }
+                },
+                onThemeConfirmed = { selectedKey ->
+                    showThemeDialog = false
+                    coroutineScope.launch {
+                        repository.setThemeColor(selectedKey)
+                        repository.markThemeSelectedOnce()
+                    }
+                }
+            )
+        }
+
         // App Launch Splash & Loading Screen
         AnimatedVisibility(
             visible = isSplashVisible,
@@ -477,7 +523,7 @@ private fun BottomNavItem(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .then(
-                if (isSelected) Modifier.background(HighlightGradient)
+                if (isSelected) Modifier.background(SkullBeatTheme.colors.highlightGradient)
                 else Modifier
             )
             .clickable(onClick = onClick)
