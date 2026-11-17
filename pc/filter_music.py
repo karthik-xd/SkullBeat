@@ -244,6 +244,7 @@ def export_tracks(tracks: List[Dict[str, Any]], filename: str):
             writer = csv.DictWriter(
                 f,
                 fieldnames=["videoId", "title", "artist", "album", "duration", "duration_seconds", "url"],
+                extrasaction="ignore",
             )
             writer.writeheader()
             writer.writerows(tracks)
@@ -284,6 +285,8 @@ def play_track(video_id: str, title: str):
     print(f"Streaming now via ffplay (Press 'q' in ffplay window or Ctrl+C to stop)...")
     try:
         subprocess.run(["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", stream_url])
+    except FileNotFoundError:
+        print("\nError: 'ffplay' is not installed or not in system PATH. Install ffmpeg to enable CLI playback.")
     except KeyboardInterrupt:
         print("\nPlayback stopped.")
 

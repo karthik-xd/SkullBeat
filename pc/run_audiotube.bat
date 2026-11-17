@@ -1,6 +1,6 @@
 @echo off
-title AudioTube - Pure YouTube Audio Player
-echo Starting AudioTube Server...
+title SkullBeat - High-Fidelity Music Streaming
+echo Starting SkullBeat Server...
 start http://localhost:8000
-python app.py
+py app.py 2>nul || python app.py
 pause

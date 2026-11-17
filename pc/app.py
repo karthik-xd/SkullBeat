@@ -8,8 +8,10 @@ Zero video downloads. Zero ads. Pure music streaming.
 import json
 import os
 import pathlib
+import re
 import subprocess
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, StreamingResponse
@@ -46,6 +48,7 @@ class HistoryItem(BaseModel):
 
 class CsvImportRequest(BaseModel):
     filename: Optional[str] = "Imported Playlist"
+    name: Optional[str] = None
     content: str
     playlist_name: Optional[str] = None
     emoji: Optional[str] = "🎵"
@@ -233,6 +236,8 @@ def extract_youtube_playlist(url_or_id: str) -> Dict[str, Any]:
             data = ydl.extract_info(url, download=False)
             tracks = []
             for entry in data.get("entries", []):
+                if not entry:
+                    continue
                 vid = entry.get("id") or entry.get("url")
                 if not vid:
                     continue
@@ -266,16 +271,25 @@ def extract_youtube_playlist(url_or_id: str) -> Dict[str, Any]:
 
 
 @app.get("/api/playlist")
-def api_get_playlist(url_or_id: str = Query(..., description="Spotify or YouTube playlist link")):
+def api_get_playlist(
+    url_or_id: Optional[str] = Query(None, description="Spotify or YouTube playlist link"),
+    url: Optional[str] = Query(None, description="Alternative url parameter")
+):
     """Fetches track metadata for any Spotify or YouTube playlist without downloading audio."""
-    clean = url_or_id.strip()
-    if "spotify.com" in clean or clean.startswith("spotify:"):
-        return extract_spotify_metadata(clean)
+    target = (url or url_or_id or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="Missing playlist URL or ID")
+    if "spotify.com" in target or target.startswith("spotify:"):
+        res = extract_spotify_metadata(target)
     else:
-        return extract_youtube_playlist(clean)
+        res = extract_youtube_playlist(target)
+    res["success"] = True
+    res["total"] = res.get("count", len(res.get("tracks", [])))
+    return res
 
 
-STREAM_URL_CACHE: Dict[str, str] = {}
+STREAM_URL_CACHE: Dict[str, Tuple[str, float]] = {}
+CACHE_TTL_SECONDS = 4 * 3600  # 4 hour stream URL expiration guard
 
 
 @app.get("/api/stream/{video_id}")
@@ -299,8 +313,16 @@ def api_stream_url(video_id: str, q: Optional[str] = None, redirect: bool = Fals
         else:
             raise HTTPException(status_code=400, detail="Missing video ID or search query")
 
-    # Fast in-memory cache
-    stream_url = STREAM_URL_CACHE.get(target_vid)
+    # Fast in-memory cache with TTL check
+    cached = STREAM_URL_CACHE.get(target_vid)
+    stream_url = None
+    if cached:
+        cached_url, exp_time = cached
+        if time.time() < exp_time:
+            stream_url = cached_url
+        else:
+            STREAM_URL_CACHE.pop(target_vid, None)
+
     title = target_vid
     channel = ""
     abr = None
@@ -323,7 +345,7 @@ def api_stream_url(video_id: str, q: Optional[str] = None, redirect: bool = Fals
                 channel = info.get("uploader") or info.get("channel") or ""
                 fmt_note = info.get("format_note") or info.get("ext") or "webm"
                 abr = info.get("abr")
-                STREAM_URL_CACHE[target_vid] = stream_url
+                STREAM_URL_CACHE[target_vid] = (stream_url, time.time() + CACHE_TTL_SECONDS)
         except HTTPException:
             raise
         except Exception as e:
@@ -550,7 +572,7 @@ def api_import_csv(req: CsvImportRequest):
         if not tracks:
             raise HTTPException(status_code=400, detail="No valid tracks found in CSV.")
 
-        name = req.playlist_name
+        name = req.playlist_name or req.name
         if not name and req.filename:
             name = req.filename.replace(".csv", "").replace("_", " ").title()
         if not name:
@@ -593,8 +615,10 @@ def api_import_csv(req: CsvImportRequest):
 
         return {
             "status": "success",
+            "success": True,
             "playlist_name": name,
             "count": len(tracks),
+            "total": len(tracks),
             "playlist": lib["playlists"][name]
         }
     except Exception as e:
@@ -1182,7 +1206,26 @@ document.querySelectorAll('.nb').forEach(function(b){
 });
 
 function isLiked(id){return S.likedIds.has(id)}
-function trackBg(t,i){return t&&t.thumbnail&&t.thumbnail!=='/logo.png'?'url("'+t.thumbnail+'") center/cover no-repeat, '+(t.g||G[(i||0)%G.length]):(t&&t.g?t.g:G[(i||0)%G.length])}
+function trackBg(t,i){
+  var th=t&&t.thumbnail&&t.thumbnail!=='/logo.png'?t.thumbnail:'';
+  var fallback=(t&&t.g?t.g:G[(i||0)%G.length]);
+  if(!th)return fallback;
+  return 'url(\''+th.replace(/'/g,"\\'")+'\') center/cover no-repeat, '+fallback;
+}
+
+async function saveFavorites(){
+  try{
+    var favList=Array.from(S.likedIds).map(function(id){
+      var t=findTrackById(id);
+      return t?{videoId:t.videoId||t.id,title:t.t,artist:t.a,album:t.al,duration:fmt(t.d),thumbnail:t.thumbnail}:{videoId:id};
+    });
+    await fetch('/api/user_library',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({playlists:S.playlists,favorites:favList})
+    });
+  }catch(e){console.warn('Failed to save favorites:',e)}
+}
 
 function rows(list,empty){
   if(!list||!list.length)return'<p class="empty">'+empty+'</p>';
@@ -1301,7 +1344,8 @@ function renderSearch(){
       var res=await fetch('/api/search?q='+encodeURIComponent(q));
       if(!res.ok)throw new Error('Search failed');
       var data=await res.json();
-      S.searchTracks=data.map(function(item,i){
+      var list=data.results||(Array.isArray(data)?data:[]);
+      S.searchTracks=list.map(function(item,i){
         return{
           id:'s_'+(item.videoId||i),
           videoId:item.videoId,
@@ -1759,8 +1803,8 @@ $('#mute-btn').onclick=function(){
 
 $('#dl').onclick=function(){
   if(!S.cur)return;
-  var vid=S.cur.videoId||'';
-  var q=encodeURIComponent((S.cur.title||'')+' '+(S.cur.artist||''));
+  var vid=S.cur.videoId||S.cur.id||'';
+  var q=encodeURIComponent((S.cur.t||S.cur.title||'')+' '+(S.cur.a||S.cur.artist||''));
   window.open('/api/download/'+(vid?encodeURIComponent(vid):'pending')+'?q='+q,'_blank');
 };
 
@@ -1835,13 +1879,14 @@ $('#ctx-like').onclick=function(){
     var id=ctxTargetTrack.videoId||ctxTargetTrack.id;
     if(S.likedIds.has(id))S.likedIds.delete(id);else S.likedIds.add(id);
     paintPlayer();
+    saveFavorites();
   }
 };
 $('#ctx-dl').onclick=function(){
   ctxMenu.classList.remove('on');
   if(ctxTargetTrack){
-    var vid=ctxTargetTrack.videoId||'';
-    var q=encodeURIComponent((ctxTargetTrack.title||'')+' '+(ctxTargetTrack.artist||''));
+    var vid=ctxTargetTrack.videoId||ctxTargetTrack.id||'';
+    var q=encodeURIComponent((ctxTargetTrack.t||ctxTargetTrack.title||'')+' '+(ctxTargetTrack.a||ctxTargetTrack.artist||''));
     window.open('/api/download/'+(vid?encodeURIComponent(vid):'pending')+'?q='+q,'_blank');
   }
 };
@@ -1967,6 +2012,7 @@ document.addEventListener('click',function(e){
     if(S.likedIds.has(id))S.likedIds.delete(id);else S.likedIds.add(id);
     l.classList.toggle('on',S.likedIds.has(id));
     paintPlayer();
+    saveFavorites();
     return;
   }
 
@@ -2042,6 +2088,7 @@ $('#rlike').onclick=function(){
   var id=S.cur.videoId||S.cur.id;
   if(S.likedIds.has(id))S.likedIds.delete(id);else S.likedIds.add(id);
   paintPlayer();
+  saveFavorites();
 };
 
 document.querySelector('.tabs').onclick=function(e){
@@ -2069,8 +2116,14 @@ async function doImportUrl(){
   try{
     var res=await fetch('/api/playlist?url='+encodeURIComponent(url));
     var data=await res.json();
-    if(data.success){
-      alert('Imported '+data.total+' tracks successfully!');
+    if(data.success||data.tracks){
+      var count=(data.total||data.count||(data.tracks?data.tracks.length:0));
+      var plName=data.title||'Imported Playlist';
+      if(data.tracks&&data.tracks.length){
+        S.playlists[plName]={songs:data.tracks,emoji:'🎵',color:'#3D8BFF'};
+        await saveFavorites();
+      }
+      alert('Imported '+count+' tracks successfully into "'+plName+'"!');
       loadLibrary();
     }else{
       alert('Import failed: '+(data.detail||data.message||'Unknown error'));
@@ -2091,11 +2144,11 @@ $('#csv-in').onchange=async function(e){
     var res=await fetch('/api/import_csv',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:name,content:content})
+      body:JSON.stringify({name:name,playlist_name:name,content:content})
     });
     var data=await res.json();
-    if(data.success){
-      alert('Imported '+data.count+' tracks into "'+data.playlist+'"!');
+    if(data.success||data.status==='success'){
+      alert('Imported '+data.count+' tracks into "'+(data.playlist_name||name)+'"!');
       loadLibrary();
     }else{
       alert('Import error: '+(data.detail||'Failed'));
