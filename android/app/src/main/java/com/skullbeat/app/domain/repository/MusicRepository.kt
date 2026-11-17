@@ -57,4 +57,9 @@ interface MusicRepository {
 
     fun getDownloadedTracks(): Flow<List<com.skullbeat.app.domain.models.DownloadedTrack>>
     suspend fun deleteDownloadedTrack(videoId: String)
+
+    val themeColor: Flow<String>
+    val hasSelectedThemeOnce: Flow<Boolean>
+    suspend fun setThemeColor(themeKey: String)
+    suspend fun markThemeSelectedOnce()
 }

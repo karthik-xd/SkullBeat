@@ -39,6 +39,16 @@ class UserPreferences @Inject constructor(
     private val SHUFFLE_ENABLED = booleanPreferencesKey("shuffle_enabled")
     private val REPEAT_MODE = intPreferencesKey("repeat_mode")
     private val VOLUME = floatPreferencesKey("volume")
+    private val THEME_COLOR = stringPreferencesKey("theme_color")
+    private val THEME_SELECTED_ONCE = booleanPreferencesKey("theme_selected_once")
+
+    val themeColorFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[THEME_COLOR] ?: "default"
+    }
+
+    val hasSelectedThemeOnce: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[THEME_SELECTED_ONCE] ?: false
+    }
 
     val settingsFlow: Flow<PlayerSettings> = context.dataStore.data.map { prefs ->
         val repeatInt = prefs[REPEAT_MODE] ?: RepeatState.OFF.ordinal
@@ -76,6 +86,18 @@ class UserPreferences @Inject constructor(
     suspend fun setVolume(volume: Float) {
         context.dataStore.edit { prefs ->
             prefs[VOLUME] = volume
+        }
+    }
+
+    suspend fun setThemeColor(themeKey: String) {
+        context.dataStore.edit { prefs ->
+            prefs[THEME_COLOR] = themeKey
+        }
+    }
+
+    suspend fun markThemeSelectedOnce() {
+        context.dataStore.edit { prefs ->
+            prefs[THEME_SELECTED_ONCE] = true
         }
     }
 }
