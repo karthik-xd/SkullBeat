@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SkullBeat
+GenericName=Music Player
+Comment=High-Fidelity Zero-Ad Music Streaming Platform
+Exec=bash -c "cd $(dirname %k) && ./run_skullbeat.sh"
+Icon=skullbeat
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;streaming;audio;player;skullbeat;
+StartupNotify=true
