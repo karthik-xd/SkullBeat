@@ -50,6 +50,9 @@ pc/
 │
 ├── requirements.txt          # [Dependencies: fastapi, uvicorn, yt-dlp, ytmusicapi, requests]
 ├── run_audiotube.bat         # [One-Click Desktop Launcher for Windows]
+├── run_skullbeat.sh          # [One-Click Desktop & Web Launcher for Ubuntu Linux]
+├── install_ubuntu.sh         # [Ubuntu/Debian Automated Installer & Desktop Shortcut Setup]
+├── skullbeat.desktop         # [FreeDesktop Application entry for Ubuntu App Drawer]
 ├── logo.png                  # [Brand emblem]
 ├── skull_transparent.png     # [Transparent skull glyph for desktop UI]
 └── history/                  # [PARENT: Persistent JSON Storage]

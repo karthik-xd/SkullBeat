@@ -240,25 +240,40 @@ cd android
 
 ---
 
-### PC Web Player & CLI
+### PC Web Player & Ubuntu Linux Support
 
-#### 1. Setup Environment
+#### Ubuntu Linux Quick Start (One-Click)
 ```bash
 cd pc
-python -m venv venv
+chmod +x install_ubuntu.sh run_skullbeat.sh
+./install_ubuntu.sh
+```
+*Creates application icon in Ubuntu Dash and starts streaming at [http://localhost:8000](http://localhost:8000).*
+
+#### Manual Environment Setup
+```bash
+cd pc
+python3 -m venv .venv
+# Ubuntu / Linux / macOS:
+source .venv/bin/activate
 # Windows:
-venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+.venv\Scripts\activate
 
 pip install -r requirements.txt
 ```
 
-#### 2. Launch FastAPI Web Player
+#### Launch Web Player
 ```bash
-python app.py
+# Ubuntu Linux:
+./run_skullbeat.sh
+
+# Windows:
+run_audiotube.bat
+
+# Direct python:
+python3 app.py
 ```
-*Or double-click `run_audiotube.bat` on Windows.* Open your browser at [http://localhost:8000](http://localhost:8000).
+Open your browser at [http://localhost:8000](http://localhost:8000).
 
 #### 3. Run Terminal CLI Player
 ```bash
@@ -271,6 +286,26 @@ python filter_music.py --source liked --artist "Skillet"
 # Filter by duration (2 to 5 minutes) and export to CSV:
 python filter_music.py --min-duration 120 --max-duration 300 --export filtered.csv
 ```
+
+---
+
+## 🎨 Theme Presets & Custom Aesthetics
+
+SkullBeat includes dynamic neon theme customization available on first launch and anytime inside the application:
+
+| Theme | Key | Accents | Description |
+| :--- | :--- | :--- | :--- |
+| **Default (Original)** | `default` | Neon Blue & Violet (`#3D8BFF`, `#8B5CFF`, `#00D4FF`) | The primary classic SkullBeat aesthetic |
+| **Cyber Cyan** | `cyan` | Neon Aqua & Cyan (`#00B8D4`, `#00F5FF`) | Futuristic cyberpunk teal vibe |
+| **Sapphire Blue** | `blue` | Deep Royal & Cobalt (`#1565C0`, `#2979FF`) | Ocean deep cobalt aesthetic |
+| **Matrix Green** | `green` | Emerald & Mint (`#00C853`, `#00E676`) | Toxic neon green glow |
+| **Neon Violet** | `purple` | Ultraviolet & Magenta (`#7B2CBF`, `#9D4EDD`) | Synthwave neon amethyst vibe |
+| **Crimson Skull** | `red` | Blood Red & Ruby (`#D90429`, `#FF2E55`) | Fiery crimson red aesthetic |
+| **Sunset Gold** | `amber` | Warm Amber & Gold (`#E85D04`, `#FF9E00`) | Warm sunset solar glow |
+
+- **Startup Prompt**: Shown once upon initial application start so users can personalize their vibe immediately.
+- **Inside App Selector**: Accessible at any time via the sidebar `Theme` button (PC Web) or top header `Palette` button (Android).
+- **Persistent Storage**: Saved in local storage / Android preferences and restored seamlessly across sessions without reload.
 
 ---
 
