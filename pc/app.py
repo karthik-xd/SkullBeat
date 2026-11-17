@@ -29,6 +29,7 @@ LOGO_PATH = pathlib.Path(__file__).parent / "logo.png"
 
 
 @app.get("/logo.png")
+@app.head("/logo.png")
 def get_app_logo():
     if LOGO_PATH.is_file():
         return FileResponse(str(LOGO_PATH), media_type="image/png")
