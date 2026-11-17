@@ -315,14 +315,14 @@ class MusicRepositoryImpl @Inject constructor(
         downloadedTracksManager.deleteDownloadedTrack(videoId)
     }
 
-    override val themeColor: Flow<String> = userPreferences.themeColorFlow
-    override val hasSelectedThemeOnce: Flow<Boolean> = userPreferences.hasSelectedThemeOnce
+    override val themeColor: Flow<String> = preferences.themeColorFlow
+    override val hasSelectedThemeOnce: Flow<Boolean> = preferences.hasSelectedThemeOnce
 
     override suspend fun setThemeColor(themeKey: String) {
-        userPreferences.setThemeColor(themeKey)
+        preferences.setThemeColor(themeKey)
     }
 
     override suspend fun markThemeSelectedOnce() {
-        userPreferences.markThemeSelectedOnce()
+        preferences.markThemeSelectedOnce()
     }
 }
