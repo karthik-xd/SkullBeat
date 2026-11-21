@@ -115,7 +115,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.3.3 (Build 16)",
+                                text = "Version 1.3.4 (Build 17)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
