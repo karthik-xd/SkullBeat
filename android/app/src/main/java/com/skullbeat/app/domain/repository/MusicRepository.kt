@@ -33,6 +33,7 @@ interface MusicRepository {
     suspend fun updatePlaylistCover(playlistId: Long, coverPath: String?)
     suspend fun updatePlaylistName(playlistId: Long, name: String)
     suspend fun isTrackInPlaylist(playlistId: Long, videoId: String): Boolean
+    suspend fun getTrackCopyCountInPlaylist(playlistId: Long, videoId: String): Int
     suspend fun deletePlaylist(playlistId: Long)
     fun getPlaylists(): Flow<List<Playlist>>
     fun getPlaylist(playlistId: Long): Flow<Playlist?>

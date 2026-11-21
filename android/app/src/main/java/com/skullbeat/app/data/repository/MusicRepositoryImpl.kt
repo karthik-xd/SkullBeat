@@ -262,6 +262,10 @@ class MusicRepositoryImpl @Inject constructor(
         return db.playlistDao().isTrackInPlaylist(playlistId, videoId) > 0
     }
 
+    override suspend fun getTrackCopyCountInPlaylist(playlistId: Long, videoId: String): Int = withContext(Dispatchers.IO) {
+        db.playlistDao().isTrackInPlaylist(playlistId, videoId)
+    }
+
     override suspend fun deletePlaylist(playlistId: Long) {
         val oldCover = db.playlistDao().getCoverPath(playlistId)
         com.skullbeat.app.domain.util.ImageUtils.deleteCoverFile(oldCover)
