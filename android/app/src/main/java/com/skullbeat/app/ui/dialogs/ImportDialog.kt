@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Warning
@@ -47,10 +48,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.documentfile.provider.DocumentFile
 import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.domain.util.CsvTrackParser
+import com.skullbeat.app.domain.util.EtaEstimator
+import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.HeartRed
 import com.skullbeat.app.ui.theme.RaisedDark
@@ -86,6 +91,8 @@ fun ImportDialog(
     var isImporting by remember { mutableStateOf(false) }
     var progressStatus by remember { mutableStateOf("") }
     var progressFraction by remember { mutableFloatStateOf(0f) }
+    var etaText by remember { mutableStateOf("") }
+    var currentProcessingSong by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // CSV Specific State
@@ -95,34 +102,100 @@ fun ImportDialog(
         mutableStateOf("CSV Import ${SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date())}")
     }
 
+    // Single or Multiple CSV files launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val allRows = mutableListOf<CsvTrackParser.CsvRow>()
+                    var count = 0
+                    var firstName = "songs.csv"
+                    for (uri in uris) {
+                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (nameIdx != -1 && cursor.moveToFirst()) {
+                                if (count == 0) firstName = cursor.getString(nameIdx)
+                            }
+                        }
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            val rows = CsvTrackParser.parse(stream)
+                            allRows.addAll(rows)
+                            count++
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (allRows.isEmpty()) {
+                            errorMessage = "No song titles detected in selected CSV(s)."
+                            parsedCsvSongs = emptyList()
+                        } else {
+                            parsedCsvSongs = allRows
+                            selectedFileName = if (count == 1) firstName else "$count CSV files (${allRows.size} songs)"
+                            csvPlaylistName = if (count == 1) firstName.substringBeforeLast(".") else "CSV Import (${allRows.size} songs)"
+                            errorMessage = null
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        errorMessage = "Failed to read CSV: ${e.localizedMessage}"
+                    }
+                }
+            }
+        }
+    }
+
+    // CSV Folder launcher
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                // Query display name
-                var name = "songs.csv"
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIdx != -1 && cursor.moveToFirst()) {
-                        name = cursor.getString(nameIdx)
-                    }
-                }
-                selectedFileName = name
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val docFolder = DocumentFile.fromTreeUri(context, uri)
+                    if (docFolder != null && docFolder.isDirectory) {
+                        val csvFiles = docFolder.listFiles().filter {
+                            it.isFile && it.name?.endsWith(".csv", ignoreCase = true) == true
+                        }
+                        if (csvFiles.isEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                errorMessage = "No .csv files found in folder '${docFolder.name}'."
+                                parsedCsvSongs = emptyList()
+                            }
+                        } else {
+                            val allRows = mutableListOf<CsvTrackParser.CsvRow>()
+                            var count = 0
+                            for (file in csvFiles) {
+                                try {
+                                    context.contentResolver.openInputStream(file.uri)?.use { stream ->
+                                        val rows = CsvTrackParser.parse(stream)
+                                        if (rows.isNotEmpty()) {
+                                            allRows.addAll(rows)
+                                            count++
+                                        }
+                                    }
+                                } catch (_: Exception) {}
+                            }
 
-                // Read and parse
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val parsed = CsvTrackParser.parse(stream)
-                    if (parsed.isEmpty()) {
-                        errorMessage = "No song titles detected. Check CSV headers or content."
-                        parsedCsvSongs = emptyList()
-                    } else {
-                        parsedCsvSongs = parsed
-                        errorMessage = null
+                            withContext(Dispatchers.Main) {
+                                if (allRows.isEmpty()) {
+                                    errorMessage = "No valid songs found in ${csvFiles.size} CSV files."
+                                    parsedCsvSongs = emptyList()
+                                } else {
+                                    parsedCsvSongs = allRows
+                                    val folderName = docFolder.name ?: "CSV Folder"
+                                    selectedFileName = "$folderName ($count CSV files)"
+                                    csvPlaylistName = folderName
+                                    errorMessage = null
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        errorMessage = "Failed to read folder: ${e.localizedMessage}"
                     }
                 }
-            } catch (e: Exception) {
-                errorMessage = "Failed to read CSV: ${e.localizedMessage}"
             }
         }
     }
@@ -190,7 +263,7 @@ fun ImportDialog(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Upload CSV",
+                                text = "Upload CSV / Folder",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (activeTab == ImportTab.CSV) TextBone else TextMuted
@@ -204,7 +277,7 @@ fun ImportDialog(
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (activeTab == ImportTab.LINK) {
                     Text(
-                        text = "Paste a Spotify or YouTube playlist/album link to match audio streams with similarity checking.",
+                        text = "Paste a Spotify or YouTube playlist/album link to match audio streams with real-time ETA calculation.",
                         style = MaterialTheme.typography.bodyMedium.copy(color = TextMuted)
                     )
 
@@ -243,31 +316,59 @@ fun ImportDialog(
                 } else {
                     // CSV Import UI
                     Text(
-                        text = "Upload a CSV with song names (and optional artists). Each track will be mapped by title similarity and added directly to your library.",
+                        text = "Upload a CSV file or select an entire CSV folder. Each song is matched with real-time ETA and added to your library.",
                         style = MaterialTheme.typography.bodyMedium.copy(color = TextMuted)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Button(
-                        onClick = { filePickerLauncher.launch("*/*") },
-                        enabled = !isImporting,
-                        colors = ButtonDefaults.buttonColors(containerColor = RaisedDark),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.UploadFile,
-                            contentDescription = "Choose CSV",
-                            tint = ElectricBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (selectedFileName != null) "Change CSV File" else "Choose CSV File",
-                            color = TextBone,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Button(
+                            onClick = { filePickerLauncher.launch(arrayOf("text/*", "text/comma-separated-values", "application/csv", "*/*")) },
+                            enabled = !isImporting,
+                            colors = ButtonDefaults.buttonColors(containerColor = RaisedDark),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.UploadFile,
+                                contentDescription = "Choose CSV",
+                                tint = ElectricBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "CSV File(s)",
+                                fontSize = 12.sp,
+                                color = TextBone,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Button(
+                            onClick = { folderPickerLauncher.launch(null) },
+                            enabled = !isImporting,
+                            colors = ButtonDefaults.buttonColors(containerColor = RaisedDark),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = "Choose Folder",
+                                tint = CyanAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "CSV Folder",
+                                fontSize = 12.sp,
+                                color = TextBone,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
 
                     if (selectedFileName != null && parsedCsvSongs.isNotEmpty()) {
@@ -330,7 +431,7 @@ fun ImportDialog(
                             .clip(RoundedCornerShape(6.dp))
                             .background(RaisedDark)
                             .padding(10.dp),
-                            verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.Top
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
@@ -346,24 +447,84 @@ fun ImportDialog(
                     }
                 }
 
-                // Progress Bar
+                // Progress Bar & Real-Time ETA Card
                 AnimatedVisibility(visible = isImporting) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 14.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(RaisedDark)
+                            .padding(12.dp)
                     ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = progressStatus.ifBlank { "Mapping songs..." },
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 12.sp,
+                                    color = TextBone,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (etaText.isNotBlank()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = etaText,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ElectricBlue
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         LinearProgressIndicator(
-                            progress = progressFraction,
-                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                            progress = { progressFraction },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
                             color = ElectricBlue,
-                            trackColor = RaisedDark
+                            trackColor = SurfaceDark
                         )
+
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = progressStatus,
-                            style = MaterialTheme.typography.labelSmall.copy(color = ElectricBlue)
-                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${(progressFraction * 100).toInt()}% completed",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    color = TextMuted
+                                )
+                            )
+                            if (currentProcessingSong.isNotBlank()) {
+                                Text(
+                                    text = currentProcessingSong,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -383,15 +544,21 @@ fun ImportDialog(
                         isImporting = true
                         errorMessage = null
                         progressStatus = "Connecting to playlist..."
-                        progressFraction = 0.1f
+                        etaText = "Estimating time remaining..."
+                        currentProcessingSong = ""
+                        progressFraction = 0.05f
 
                         scope.launch {
                             try {
                                 if (cleanUrl.contains("spotify.com") || cleanUrl.startsWith("spotify:")) {
-                                    val result = repository.importSpotify(cleanUrl) { matched, total ->
+                                    val etaEstimator = EtaEstimator()
+                                    etaEstimator.start()
+                                    val result = repository.importSpotify(cleanUrl) { processed, total ->
                                         scope.launch(Dispatchers.Main) {
-                                            progressStatus = "Matched $matched / $total songs with title similarity..."
-                                            progressFraction = (matched.toFloat() / total.toFloat()).coerceIn(0.1f, 0.95f)
+                                            val info = etaEstimator.calculate(processed, total)
+                                            progressStatus = "Mapping $processed / $total songs"
+                                            etaText = info.fullSummary
+                                            progressFraction = (processed.toFloat() / total.toFloat()).coerceIn(0.05f, 0.98f)
                                         }
                                     }
 
@@ -408,6 +575,7 @@ fun ImportDialog(
                                     }
                                 } else {
                                     progressStatus = "Parsing YouTube playlist..."
+                                    etaText = "Fetching stream metadata..."
                                     val (title, tracks) = repository.importYouTubePlaylist(cleanUrl)
                                     val playlistId = repository.createPlaylist(
                                         name = title,
@@ -431,22 +599,29 @@ fun ImportDialog(
                     } else {
                         // CSV Import Execution
                         if (parsedCsvSongs.isEmpty()) {
-                            errorMessage = "Please choose a CSV file first"
+                            errorMessage = "Please choose a CSV file or folder first"
                             return@Button
                         }
 
                         isImporting = true
                         errorMessage = null
                         progressStatus = "Mapping songs from CSV..."
+                        etaText = "Estimating time remaining..."
+                        currentProcessingSong = ""
                         progressFraction = 0.05f
 
                         scope.launch {
                             try {
+                                val etaEstimator = EtaEstimator()
+                                etaEstimator.start()
                                 val songPairs = parsedCsvSongs.map { it.title to it.artist }
-                                val (title, matchedTracks) = repository.importCsvSongs(songPairs) { matched, total, currentSong ->
+                                val (title, matchedTracks) = repository.importCsvSongs(songPairs) { processed, total, currentSong ->
                                     scope.launch(Dispatchers.Main) {
-                                        progressStatus = "Mapped $matched / $total: $currentSong"
-                                        progressFraction = (matched.toFloat() / total.toFloat()).coerceIn(0.05f, 0.95f)
+                                        val info = etaEstimator.calculate(processed, total)
+                                        progressStatus = "Mapping $processed / $total songs"
+                                        currentProcessingSong = currentSong
+                                        etaText = info.fullSummary
+                                        progressFraction = (processed.toFloat() / total.toFloat()).coerceIn(0.05f, 0.98f)
                                     }
                                 }
 

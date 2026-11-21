@@ -111,6 +111,7 @@ class MusicRepositoryImpl @Inject constructor(
     ): Pair<String, List<Track>> = withContext(Dispatchers.IO) {
         val total = songs.size
         var matchedCount = 0
+        var processedCount = 0
         val resolvedTracks = mutableListOf<Track>()
 
         for ((title, artist) in songs) {
@@ -121,9 +122,11 @@ class MusicRepositoryImpl @Inject constructor(
                 if (hit != null) {
                     resolvedTracks.add(hit)
                     matchedCount++
-                    onProgress(matchedCount, total, title)
                 }
             } catch (_: Exception) {
+            } finally {
+                processedCount++
+                onProgress(processedCount, total, title)
             }
         }
 

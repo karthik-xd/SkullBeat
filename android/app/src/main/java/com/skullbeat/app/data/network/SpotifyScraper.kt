@@ -138,24 +138,24 @@ class SpotifyScraper @Inject constructor(
         val total = itemsToMatch.size
         val semaphore = Semaphore(8)
         var matchedCount = 0
+        var processedCount = 0
 
         val deferreds = itemsToMatch.map { item ->
             async {
                 semaphore.withPermit {
-                    try {
+                    val hit = try {
                         val query = "${item.title} ${item.artist}".trim()
                         val hits = youTubeExtractor.searchSongs(query, limit = 5)
-                        val hit = TrackMatcher.findBestMatch(item.title, item.artist, hits)
-                        if (hit != null) {
-                            synchronized(this@SpotifyScraper) {
-                                matchedCount++
-                                onProgress(matchedCount, total)
-                            }
-                        }
-                        hit
+                        TrackMatcher.findBestMatch(item.title, item.artist, hits)
                     } catch (_: Exception) {
                         null
                     }
+                    synchronized(this@SpotifyScraper) {
+                        processedCount++
+                        if (hit != null) matchedCount++
+                        onProgress(processedCount, total)
+                    }
+                    hit
                 }
             }
         }
