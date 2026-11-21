@@ -345,6 +345,7 @@ fun SkullBeatNavHost(
             AddToPlaylistDialog(
                 track = trackForPlaylist,
                 playlists = playlists,
+                repository = repository,
                 onSelectPlaylist = { pl ->
                     coroutineScope.launch(Dispatchers.IO) {
                         try {

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,7 +21,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
+import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.ui.components.PlaylistCover
+import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.RaisedDark
 import com.skullbeat.app.ui.theme.SurfaceDark
@@ -41,10 +52,64 @@ import com.skullbeat.app.ui.theme.TextMuted
 fun AddToPlaylistDialog(
     track: Track,
     playlists: List<Playlist>,
+    repository: MusicRepository? = null,
     onSelectPlaylist: (Playlist) -> Unit,
     onCreateNewPlaylist: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var playlistCopyCounts by remember { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    var playlistPendingConfirm by remember { mutableStateOf<Playlist?>(null) }
+
+    LaunchedEffect(track.videoId, playlists) {
+        if (repository != null) {
+            val counts = mutableMapOf<Long, Int>()
+            for (pl in playlists) {
+                counts[pl.id] = repository.getTrackCopyCountInPlaylist(pl.id, track.videoId)
+            }
+            playlistCopyCounts = counts
+        }
+    }
+
+    // Spotify-style "Add anyway" confirmation modal when duplicate selected
+    if (playlistPendingConfirm != null) {
+        val targetPl = playlistPendingConfirm!!
+        val count = playlistCopyCounts[targetPl.id] ?: 1
+        AlertDialog(
+            onDismissRequest = { playlistPendingConfirm = null },
+            containerColor = SurfaceDark,
+            title = {
+                Text(
+                    text = "Already in this playlist",
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                    color = TextBone
+                )
+            },
+            text = {
+                Text(
+                    text = "\"${track.title}\" is already in \"${targetPl.name}\" ($count ${if (count == 1) "copy" else "copies"}).\n\nDo you want to add another copy?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        playlistPendingConfirm = null
+                        onSelectPlaylist(targetPl)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+                ) {
+                    Text("Add Another Copy", color = TextBone, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { playlistPendingConfirm = null }) {
+                    Text("Don't Add", color = TextMuted)
+                }
+            }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceDark,
@@ -98,13 +163,19 @@ fun AddToPlaylistDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(playlists, key = { it.id }) { pl ->
+                            val copyCount = playlistCopyCounts[pl.id] ?: 0
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(RaisedDark)
                                     .clickable {
-                                        onSelectPlaylist(pl)
+                                        if (copyCount > 0) {
+                                            playlistPendingConfirm = pl
+                                        } else {
+                                            onSelectPlaylist(pl)
+                                        }
                                     }
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -125,8 +196,26 @@ fun AddToPlaylistDialog(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "Playlist",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = TextMuted)
+                                        text = if (copyCount > 0) {
+                                            "In playlist ($copyCount ${if (copyCount == 1) "copy" else "copies"}) • Tap to add copy"
+                                        } else {
+                                            "Playlist"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontSize = 11.sp,
+                                            color = if (copyCount > 0) CyanAccent else TextMuted
+                                        )
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { onSelectPlaylist(pl) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = if (copyCount > 0) "Add another copy" else "Add",
+                                        tint = if (copyCount > 0) CyanAccent else ElectricBlue,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
