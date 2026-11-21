@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -167,6 +168,40 @@ fun LibraryScreen(
                     )
                 }
 
+                // Export CSV Button for active tab
+                if (selectedTab == LibraryTab.LIKED || selectedTab == LibraryTab.DOWNLOADS || selectedTab == LibraryTab.ALL) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            when (selectedTab) {
+                                LibraryTab.LIKED -> {
+                                    viewModel.exportLikedSongsCsv()
+                                    Toast.makeText(context, "Exporting Liked Songs CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                                }
+                                LibraryTab.DOWNLOADS -> {
+                                    viewModel.exportDownloadsCsv()
+                                    Toast.makeText(context, "Exporting Downloaded Songs CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                                }
+                                else -> {
+                                    viewModel.exportAllCsv()
+                                    Toast.makeText(context, "Exporting Library CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(RaisedDark)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Export CSV",
+                            tint = CyanAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
                 if (selectedTab == LibraryTab.HISTORY) {
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
@@ -244,13 +279,21 @@ fun LibraryScreen(
                 item(key = "downloads_playlist_shortcut") {
                     DownloadsShortcutCard(
                         trackCount = downloadedList.size,
-                        onClick = { viewModel.selectTab(LibraryTab.DOWNLOADS) }
+                        onClick = { viewModel.selectTab(LibraryTab.DOWNLOADS) },
+                        onExportCsv = {
+                            viewModel.exportDownloadsCsv()
+                            Toast.makeText(context, "Exporting Downloads CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                        }
                     )
                 }
                 items(playlists, key = { "pl_${it.id}" }) { playlist ->
                     PlaylistCard(
                         playlist = playlist,
-                        onClick = { onPlaylistClick(playlist.id) }
+                        onClick = { onPlaylistClick(playlist.id) },
+                        onExportCsv = {
+                            viewModel.exportPlaylistCsv(playlist)
+                            Toast.makeText(context, "Exporting ${playlist.name} CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                        }
                     )
                 }
             }
@@ -567,6 +610,39 @@ fun LibraryScreen(
                 )
 
                 AddMenuOption(
+                    icon = Icons.Default.FileDownload,
+                    title = "Export Liked Songs CSV",
+                    subtitle = "Download CSV of liked songs (metadata only, zero audio download)",
+                    onClick = {
+                        showAddMenuSheet = false
+                        viewModel.exportLikedSongsCsv()
+                        Toast.makeText(context, "Exporting Liked Songs CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                AddMenuOption(
+                    icon = Icons.Default.FileDownload,
+                    title = "Export Downloads CSV",
+                    subtitle = "Download CSV of downloaded songs (metadata only, zero audio download)",
+                    onClick = {
+                        showAddMenuSheet = false
+                        viewModel.exportDownloadsCsv()
+                        Toast.makeText(context, "Exporting Downloaded Songs CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                AddMenuOption(
+                    icon = Icons.Default.FileDownload,
+                    title = "Export All Library CSV",
+                    subtitle = "Download CSV of all songs in library (metadata only, zero audio download)",
+                    onClick = {
+                        showAddMenuSheet = false
+                        viewModel.exportAllCsv()
+                        Toast.makeText(context, "Exporting Library CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
+                    }
+                )
+
+                AddMenuOption(
                     icon = Icons.Default.Backup,
                     title = "Backup Liked Songs",
                     subtitle = "Save safe offline snapshot to storage",
@@ -780,7 +856,8 @@ private fun AddMenuOption(
 @Composable
 private fun PlaylistCard(
     playlist: Playlist,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onExportCsv: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -808,17 +885,37 @@ private fun PlaylistCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text(
-            text = "Playlist",
-            style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Playlist",
+                style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
+            )
+            if (onExportCsv != null) {
+                IconButton(
+                    onClick = onExportCsv,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = "Export CSV",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun DownloadsShortcutCard(
     trackCount: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onExportCsv: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -853,11 +950,31 @@ private fun DownloadsShortcutCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text(
-            text = if (trackCount == 1) "1 song • Offline" else "$trackCount songs • Offline",
-            style = MaterialTheme.typography.bodySmall.copy(color = SkullBeatTheme.colors.secondary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (trackCount == 1) "1 song • Offline" else "$trackCount songs • Offline",
+                style = MaterialTheme.typography.bodySmall.copy(color = SkullBeatTheme.colors.secondary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (onExportCsv != null) {
+                IconButton(
+                    onClick = onExportCsv,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = "Export CSV",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }

@@ -55,9 +55,9 @@ class PlaylistViewModel @Inject constructor(
         return playerManager.removeTrackFromUserQueue(track)
     }
 
-    fun playTrack(track: Track) {
+    fun playTrack(track: Track, index: Int? = null) {
         val plName = playlist.value?.name ?: "Playlist"
-        playerManager.playTrack(track, tracks.value, PlaybackContextType.PLAYLIST, plName)
+        playerManager.playTrack(track, tracks.value, PlaybackContextType.PLAYLIST, plName, initialIndex = index)
     }
 
     fun removeTrack(videoId: String) {

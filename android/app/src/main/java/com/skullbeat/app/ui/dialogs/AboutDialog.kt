@@ -51,6 +51,7 @@ fun AboutDialog(
     onOpenThemeSelector: (() -> Unit)? = null
 ) {
     val updates = listOf(
+        "Universal CSV Metadata Export & Import" to "Export/download metadata CSV for user-created playlists, liked songs, and downloads without downloading audio files. Upload CSV files or entire folders with instant 0-second mapping for known tracks and direct addition to Liked Songs or Playlists.",
         "Real-Time Song Download ETA & Speed" to "Live download estimated time to finish (ETA), transfer speed (MB/s), and progress bytes in both notification bar and app (Now Playing & Downloads tab).",
         "Real-Time Song Mapping ETA & CSV Folder Import" to "Live estimated time to finish (ETA), mapping speed (songs/sec), and percentage progress when importing playlist links or CSVs. Choose individual CSV files or an entire folder of CSV playlists.",
         "Selectable App Theme Colors" to "Choose your style: Classic SkullBeat, Cyber Cyan, Sapphire Blue, Matrix Green, Neon Violet, Crimson Skull, or Sunset Gold. Shown on first startup and selectable anytime from Home, Library, or Settings.",
@@ -114,7 +115,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.3.2 (Build 15)",
+                                text = "Version 1.3.3 (Build 16)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

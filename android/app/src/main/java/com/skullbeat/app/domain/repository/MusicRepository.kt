@@ -16,6 +16,7 @@ interface MusicRepository {
     suspend fun importYouTubePlaylist(urlOrId: String): Pair<String, List<Track>>
     suspend fun importSpotify(urlOrUri: String, onProgress: (Int, Int) -> Unit): SpotifyImportResult
     suspend fun importCsvSongs(songs: List<Pair<String, String>>, onProgress: (matched: Int, total: Int, currentSong: String) -> Unit): Pair<String, List<Track>>
+    suspend fun importCsvRows(rows: List<com.skullbeat.app.domain.util.CsvTrackParser.CsvRow>, onProgress: (matched: Int, total: Int, currentSong: String) -> Unit): Pair<String, List<Track>>
 
     suspend fun saveTrack(track: Track)
     suspend fun saveTracks(tracks: List<Track>)
@@ -24,6 +25,7 @@ interface MusicRepository {
 
     fun isFavorite(videoId: String): Flow<Boolean>
     suspend fun toggleFavorite(track: Track)
+    suspend fun addTracksToFavorites(tracks: List<Track>)
     fun getFavorites(): Flow<List<Track>>
 
     suspend fun createPlaylist(name: String, emoji: String = "🎵", colorHex: String = "#3D8BFF", coverPath: String? = null): Long
@@ -35,6 +37,7 @@ interface MusicRepository {
     fun getPlaylists(): Flow<List<Playlist>>
     fun getPlaylist(playlistId: Long): Flow<Playlist?>
     fun getPlaylistTracks(playlistId: Long): Flow<List<Track>>
+    suspend fun getPlaylistTracksList(playlistId: Long): List<Track>
     suspend fun addTrackToPlaylist(playlistId: Long, track: Track): Boolean
     suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>): Boolean
     suspend fun removeTrackFromPlaylist(playlistId: Long, videoId: String)

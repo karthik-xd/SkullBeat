@@ -75,6 +75,10 @@ enum class ImportTab {
     LINK, CSV
 }
 
+enum class CsvDestination {
+    PLAYLIST, LIKED_SONGS
+}
+
 @Composable
 fun ImportDialog(
     initialUrl: String = "",
@@ -98,6 +102,7 @@ fun ImportDialog(
     // CSV Specific State
     var selectedFileName by remember { mutableStateOf<String?>(null) }
     var parsedCsvSongs by remember { mutableStateOf<List<CsvTrackParser.CsvRow>>(emptyList()) }
+    var csvDestination by remember { mutableStateOf(CsvDestination.PLAYLIST) }
     var csvPlaylistName by remember {
         mutableStateOf("CSV Import ${SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date())}")
     }
@@ -132,7 +137,11 @@ fun ImportDialog(
                         } else {
                             parsedCsvSongs = allRows
                             selectedFileName = if (count == 1) firstName else "$count CSV files (${allRows.size} songs)"
-                            csvPlaylistName = if (count == 1) firstName.substringBeforeLast(".") else "CSV Import (${allRows.size} songs)"
+                            val baseName = if (count == 1) firstName.substringBeforeLast(".") else "CSV Import (${allRows.size} songs)"
+                            csvPlaylistName = baseName
+                            if (baseName.lowercase().contains("liked") || baseName.lowercase().contains("favorite")) {
+                                csvDestination = CsvDestination.LIKED_SONGS
+                            }
                             errorMessage = null
                         }
                     }
@@ -186,6 +195,9 @@ fun ImportDialog(
                                     val folderName = docFolder.name ?: "CSV Folder"
                                     selectedFileName = "$folderName ($count CSV files)"
                                     csvPlaylistName = folderName
+                                    if (folderName.lowercase().contains("liked") || folderName.lowercase().contains("favorite")) {
+                                        csvDestination = CsvDestination.LIKED_SONGS
+                                    }
                                     errorMessage = null
                                 }
                             }
@@ -398,7 +410,7 @@ fun ImportDialog(
 
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Playlist Name",
+                            text = "Import Destination",
                             style = MaterialTheme.typography.labelSmall.copy(color = TextMuted)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -407,16 +419,77 @@ fun ImportDialog(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(RaisedDark)
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(3.dp)
                         ) {
-                            BasicTextField(
-                                value = csvPlaylistName,
-                                onValueChange = { csvPlaylistName = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isImporting,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextBone),
-                                cursorBrush = SolidColor(ElectricBlue),
-                                singleLine = true
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (csvDestination == CsvDestination.PLAYLIST) ElectricBlue else RaisedDark)
+                                    .clickable(enabled = !isImporting) { csvDestination = CsvDestination.PLAYLIST }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "📁 To Playlist",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (csvDestination == CsvDestination.PLAYLIST) TextBone else TextMuted
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (csvDestination == CsvDestination.LIKED_SONGS) HeartRed else RaisedDark)
+                                    .clickable(enabled = !isImporting) { csvDestination = CsvDestination.LIKED_SONGS }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "❤️ To Liked Songs",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (csvDestination == CsvDestination.LIKED_SONGS) TextBone else TextMuted
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (csvDestination == CsvDestination.PLAYLIST) {
+                            Text(
+                                text = "Playlist Name",
+                                style = MaterialTheme.typography.labelSmall.copy(color = TextMuted)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(RaisedDark)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                BasicTextField(
+                                    value = csvPlaylistName,
+                                    onValueChange = { csvPlaylistName = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isImporting,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextBone),
+                                    cursorBrush = SolidColor(ElectricBlue),
+                                    singleLine = true
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Maps audio streams without downloading full songs.",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = TextMuted)
+                            )
+                        } else {
+                            Text(
+                                text = "All songs will be mapped and added to Liked Songs (Streaming ready — zero audio download).",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = TextMuted)
                             )
                         }
                     }
@@ -614,8 +687,7 @@ fun ImportDialog(
                             try {
                                 val etaEstimator = EtaEstimator()
                                 etaEstimator.start()
-                                val songPairs = parsedCsvSongs.map { it.title to it.artist }
-                                val (title, matchedTracks) = repository.importCsvSongs(songPairs) { processed, total, currentSong ->
+                                val (title, matchedTracks) = repository.importCsvRows(parsedCsvSongs) { processed, total, currentSong ->
                                     scope.launch(Dispatchers.Main) {
                                         val info = etaEstimator.calculate(processed, total)
                                         progressStatus = "Mapping $processed / $total songs"
@@ -633,17 +705,27 @@ fun ImportDialog(
                                     return@launch
                                 }
 
-                                val playlistName = csvPlaylistName.ifBlank { title }
-                                val playlistId = repository.createPlaylist(
-                                    name = playlistName,
-                                    emoji = "📁",
-                                    colorHex = "#00E5FF"
-                                )
-                                repository.addTracksToPlaylist(playlistId, matchedTracks)
+                                if (csvDestination == CsvDestination.LIKED_SONGS) {
+                                    repository.addTracksToFavorites(matchedTracks)
+                                    withContext(Dispatchers.Main) {
+                                        isImporting = false
+                                        android.widget.Toast.makeText(context, "Added ${matchedTracks.size} songs to Liked Songs (Streaming ready)!", android.widget.Toast.LENGTH_LONG).show()
+                                        onImportSuccess(-1L)
+                                    }
+                                } else {
+                                    val playlistName = csvPlaylistName.ifBlank { title }
+                                    val playlistId = repository.createPlaylist(
+                                        name = playlistName,
+                                        emoji = "📁",
+                                        colorHex = "#00E5FF"
+                                    )
+                                    repository.addTracksToPlaylist(playlistId, matchedTracks)
 
-                                withContext(Dispatchers.Main) {
-                                    isImporting = false
-                                    onImportSuccess(playlistId)
+                                    withContext(Dispatchers.Main) {
+                                        isImporting = false
+                                        android.widget.Toast.makeText(context, "Created playlist '$playlistName' with ${matchedTracks.size} songs!", android.widget.Toast.LENGTH_SHORT).show()
+                                        onImportSuccess(playlistId)
+                                    }
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {

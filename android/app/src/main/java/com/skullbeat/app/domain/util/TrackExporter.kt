@@ -20,15 +20,17 @@ object TrackExporter {
         return sb.toString()
     }
 
-    fun toCsv(tracks: List<Track>): String {
+    fun toCsv(tracks: List<Track>, playlistName: String? = null): String {
         val sb = StringBuilder()
-        sb.appendLine("Title,Artist,Album,Duration,URL")
+        sb.appendLine("Title,Artist,Album,Duration,VideoId,URL,Playlist")
         for (t in tracks) {
             val title = escapeCsv(t.title)
             val artist = escapeCsv(t.artist)
             val album = escapeCsv(t.album)
-            val url = "https://www.youtube.com/watch?v=${t.videoId}"
-            sb.appendLine("\"$title\",\"$artist\",\"$album\",${t.durationSec},\"$url\"")
+            val videoId = escapeCsv(t.videoId)
+            val url = if (t.videoId.isNotBlank()) "https://www.youtube.com/watch?v=${t.videoId}" else ""
+            val pl = escapeCsv(playlistName ?: "")
+            sb.appendLine("\"$title\",\"$artist\",\"$album\",${t.durationSec},\"$videoId\",\"$url\",\"$pl\"")
         }
         return sb.toString()
     }
@@ -68,10 +70,11 @@ object TrackExporter {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "$cleanPrefix (Metadata Only)")
+            putExtra(Intent.EXTRA_SUBJECT, "$cleanPrefix (Metadata Only — Zero Audio Downloads)")
+            putExtra(Intent.EXTRA_TEXT, "Exported $cleanPrefix CSV from SkullBeat (Metadata only — zero audio downloaded).")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Export $cleanPrefix"))
+        context.startActivity(Intent.createChooser(intent, "Download / Export $cleanPrefix CSV"))
     }
 
     private fun escapeCsv(str: String): String {

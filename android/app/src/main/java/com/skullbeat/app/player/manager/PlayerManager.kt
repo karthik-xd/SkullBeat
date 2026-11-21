@@ -268,10 +268,11 @@ class PlayerManager @Inject constructor(
         contextTracks: List<Track>,
         contextType: PlaybackContextType = PlaybackContextType.QUEUE,
         contextId: String? = null,
-        isUserQueued: Boolean = false
+        isUserQueued: Boolean = false,
+        initialIndex: Int? = null
     ) {
         val current = _playbackState.value.currentTrack
-        if (current?.videoId == track.videoId) {
+        if (current?.videoId == track.videoId && (initialIndex == null || initialIndex == _playbackState.value.currentIndex)) {
             if (!exoPlayer.isPlaying) {
                 if (exoPlayer.playbackState == Player.STATE_IDLE) {
                     val mediaItem = buildMediaItem(track)
@@ -290,7 +291,9 @@ class PlayerManager @Inject constructor(
         }
 
         val tracks = if (contextTracks.isEmpty()) listOf(track) else contextTracks
-        val index = if (isUserQueued) {
+        val index = if (initialIndex != null && initialIndex in tracks.indices) {
+            initialIndex
+        } else if (isUserQueued) {
             val found = tracks.indexOfFirst { it.videoId == track.videoId }
             if (found >= 0) found else _playbackState.value.currentIndex
         } else {

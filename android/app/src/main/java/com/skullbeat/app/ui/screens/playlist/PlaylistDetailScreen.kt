@@ -205,10 +205,10 @@ fun PlaylistDetailScreen(
                         if (tracks.isEmpty()) {
                             Toast.makeText(context, "No tracks in playlist to export", Toast.LENGTH_SHORT).show()
                         } else {
-                            val content = TrackExporter.toCsv(tracks)
                             val name = playlist?.name?.ifBlank { "Playlist" } ?: "Playlist"
+                            val content = TrackExporter.toCsv(tracks, name)
                             TrackExporter.shareExport(context, "csv", content, "text/csv", name)
-                            Toast.makeText(context, "Exporting $name CSV (Metadata only)", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Exporting $name CSV (Metadata only — zero audio download)", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier
@@ -403,12 +403,12 @@ fun PlaylistDetailScreen(
                     items = tracks,
                     key = { index, track -> "pl_${playlistId}_${track.videoId}_$index" },
                     contentType = { _, _ -> "track_item" }
-                ) { _, track ->
+                ) { index, track ->
                     TrackListItem(
                         track = track,
                         isCurrentTrack = currentTrackId == track.videoId,
                         isFavorite = favIds.contains(track.videoId),
-                        onClick = { viewModel.playTrack(track) },
+                        onClick = { viewModel.playTrack(track, index) },
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
                         onRemoveFromPlaylist = {
@@ -585,7 +585,7 @@ fun PlaylistDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(searchResults, key = { "add_track_${it.videoId}" }) { candidateTrack ->
-                            val isAlreadyAdded = tracks.any { it.videoId == candidateTrack.videoId }
+                            val copyCount = tracks.count { it.videoId == candidateTrack.videoId }
 
                             Row(
                                 modifier = Modifier
@@ -618,37 +618,51 @@ fun PlaylistDetailScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = candidateTrack.artist,
+                                        text = if (copyCount > 0) "${candidateTrack.artist} • $copyCount in playlist" else candidateTrack.artist,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextMuted,
+                                        color = if (copyCount > 0) CyanAccent else TextMuted,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
-                                IconButton(
-                                    onClick = {
-                                        if (isAlreadyAdded) {
+                                if (copyCount > 0) {
+                                    IconButton(
+                                        onClick = {
                                             viewModel.removeTrack(candidateTrack.videoId)
                                             Toast.makeText(
                                                 context,
-                                                "Removed \"${candidateTrack.title}\" from ${playlist?.name ?: "Playlist"}",
+                                                "Removed 1 copy of \"${candidateTrack.title}\"",
                                                 Toast.LENGTH_SHORT
                                             ).show()
-                                        } else {
-                                            viewModel.addTrack(candidateTrack)
-                                            Toast.makeText(
-                                                context,
-                                                "Added \"${candidateTrack.title}\" to ${playlist?.name ?: "Playlist"}",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Remove copy",
+                                            tint = HeartRed,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        viewModel.addTrack(candidateTrack)
+                                        val toastMsg = if (copyCount > 0) {
+                                            "Added another copy (${copyCount + 1}) to ${playlist?.name ?: "Playlist"}"
+                                        } else {
+                                            "Added \"${candidateTrack.title}\" to ${playlist?.name ?: "Playlist"}"
+                                        }
+                                        Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(36.dp)
                                 ) {
                                     Icon(
-                                        imageVector = if (isAlreadyAdded) Icons.Default.Check else Icons.Default.Add,
-                                        contentDescription = if (isAlreadyAdded) "In playlist (tap to remove)" else "Add",
-                                        tint = if (isAlreadyAdded) CyanAccent else ElectricBlue,
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = if (copyCount > 0) "Add another copy" else "Add",
+                                        tint = ElectricBlue,
                                         modifier = Modifier.size(22.dp)
                                     )
                                 }

@@ -105,23 +105,50 @@ class MusicRepositoryImpl @Inject constructor(
         return result
     }
 
-    override suspend fun importCsvSongs(
-        songs: List<Pair<String, String>>,
+    override suspend fun importCsvRows(
+        rows: List<com.skullbeat.app.domain.util.CsvTrackParser.CsvRow>,
         onProgress: (matched: Int, total: Int, currentSong: String) -> Unit
     ): Pair<String, List<Track>> = withContext(Dispatchers.IO) {
-        val total = songs.size
+        val total = rows.size
         var matchedCount = 0
         var processedCount = 0
         val resolvedTracks = mutableListOf<Track>()
 
-        for ((title, artist) in songs) {
-            val query = if (artist.isNotBlank()) "$title $artist" else title
+        for (row in rows) {
+            val title = row.title
+            val artist = row.artist
+            val videoId = row.videoId
+
             try {
-                val candidates = extractor.searchSongs(query, limit = 5)
-                val hit = TrackMatcher.findBestMatch(title, artist, candidates, minScoreThreshold = 0.35)
-                if (hit != null) {
-                    resolvedTracks.add(hit)
-                    matchedCount++
+                if (videoId.isNotBlank()) {
+                    val existing = db.trackDao().getTrack(videoId)
+                    if (existing != null) {
+                        resolvedTracks.add(existing)
+                        matchedCount++
+                    } else {
+                        val duration: Long = if (row.durationSec > 0) row.durationSec.toLong() else 210L
+                        val mins = duration / 60
+                        val secs = duration % 60
+                        val track = Track(
+                            videoId = videoId,
+                            title = title,
+                            artist = artist.ifBlank { "Unknown Artist" },
+                            album = row.album.ifBlank { "Single" },
+                            durationSec = duration,
+                            durationFormatted = String.format(java.util.Locale.US, "%d:%02d", mins, secs),
+                            thumbnailUrl = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+                        )
+                        resolvedTracks.add(track)
+                        matchedCount++
+                    }
+                } else {
+                    val query = if (artist.isNotBlank()) "$title $artist" else title
+                    val candidates = extractor.searchSongs(query, limit = 5)
+                    val hit = TrackMatcher.findBestMatch(title, artist, candidates, minScoreThreshold = 0.35)
+                    if (hit != null) {
+                        resolvedTracks.add(hit)
+                        matchedCount++
+                    }
                 }
             } catch (_: Exception) {
             } finally {
@@ -137,6 +164,14 @@ class MusicRepositoryImpl @Inject constructor(
         val playlistTitle = "CSV Import (${resolvedTracks.size} songs)"
         Pair(playlistTitle, resolvedTracks)
     }
+
+    override suspend fun importCsvSongs(
+        songs: List<Pair<String, String>>,
+        onProgress: (matched: Int, total: Int, currentSong: String) -> Unit
+    ): Pair<String, List<Track>> = importCsvRows(
+        songs.map { com.skullbeat.app.domain.util.CsvTrackParser.CsvRow(title = it.first, artist = it.second) },
+        onProgress
+    )
 
     override suspend fun saveTrack(track: Track) {
         db.trackDao().insertTrack(track)
@@ -171,6 +206,20 @@ class MusicRepositoryImpl @Inject constructor(
             backupManager.saveLikedSongsBackup(currentFavs)
         } catch (e: Exception) {
             Log.e("MusicRepository", "Failed to update backup after toggleFavorite", e)
+        }
+    }
+
+    override suspend fun addTracksToFavorites(tracks: List<Track>) = withContext(Dispatchers.IO) {
+        if (tracks.isEmpty()) return@withContext
+        db.trackDao().insertTracks(tracks)
+        val now = System.currentTimeMillis()
+        val favorites = tracks.map { Favorite(videoId = it.videoId, addedAt = now) }
+        db.favoriteDao().addFavorites(favorites)
+        try {
+            val currentFavs = db.favoriteDao().getFavoriteTracks()
+            backupManager.saveLikedSongsBackup(currentFavs)
+        } catch (e: Exception) {
+            Log.e("MusicRepository", "Failed to update backup after addTracksToFavorites", e)
         }
     }
 
@@ -231,23 +280,23 @@ class MusicRepositoryImpl @Inject constructor(
         return db.playlistDao().getPlaylistTracksFlow(playlistId)
     }
 
+    override suspend fun getPlaylistTracksList(playlistId: Long): List<Track> {
+        return db.playlistDao().getPlaylistTracks(playlistId)
+    }
+
     override suspend fun addTrackToPlaylist(playlistId: Long, track: Track): Boolean {
         db.trackDao().insertTrack(track)
         val isAlreadyIn = isTrackInPlaylist(playlistId, track.videoId)
-        if (isAlreadyIn) {
-            // Remove previous position so it is promoted to the very first position
-            db.playlistDao().removeTrackFromPlaylist(playlistId, track.videoId)
-        }
+        // Multi-copy support: Always add a new instance without deleting existing copies
         db.playlistDao().addTrackToPlaylist(playlistId, track.videoId)
         return !isAlreadyIn
     }
 
     override suspend fun addTracksToPlaylist(playlistId: Long, tracks: List<Track>): Boolean {
         if (tracks.isEmpty()) return false
-        val newTracks = tracks.filter { !isTrackInPlaylist(playlistId, it.videoId) }
-        if (newTracks.isEmpty()) return false
-        db.trackDao().insertTracks(newTracks)
-        db.playlistDao().addTracksToPlaylist(playlistId, newTracks.map { it.videoId })
+        // Multi-copy support: Preserve all tracks including duplicates from CSV, folder, or link import
+        db.trackDao().insertTracks(tracks)
+        db.playlistDao().addTracksToPlaylist(playlistId, tracks.map { it.videoId })
         return true
     }
 

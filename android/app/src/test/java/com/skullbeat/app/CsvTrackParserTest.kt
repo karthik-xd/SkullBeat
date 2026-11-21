@@ -114,6 +114,62 @@ class CsvTrackParserTest {
     }
 
     @Test
+    fun parseExportedSkullBeatCsvRoundtrip() {
+        val tracks = listOf(
+            com.skullbeat.app.domain.models.Track(
+                videoId = "dQw4w9WgXcQ",
+                title = "Never Gonna Give You Up",
+                artist = "Rick Astley",
+                album = "Whenever You Need Somebody",
+                durationSec = 213,
+                durationFormatted = "3:33",
+                thumbnailUrl = "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+            ),
+            com.skullbeat.app.domain.models.Track(
+                videoId = "kJQP7kiw5Fk",
+                title = "Despacito",
+                artist = "Luis Fonsi, Daddy Yankee",
+                album = "VIDA",
+                durationSec = 282,
+                durationFormatted = "4:42",
+                thumbnailUrl = "https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg"
+            )
+        )
+
+        val csv = com.skullbeat.app.domain.util.TrackExporter.toCsv(tracks, "My Top Tracks")
+        val parsed = CsvTrackParser.parse(csv)
+
+        assertEquals(2, parsed.size)
+        assertEquals("Never Gonna Give You Up", parsed[0].title)
+        assertEquals("Rick Astley", parsed[0].artist)
+        assertEquals("Whenever You Need Somebody", parsed[0].album)
+        assertEquals(213, parsed[0].durationSec)
+        assertEquals("dQw4w9WgXcQ", parsed[0].videoId)
+        assertEquals("https://www.youtube.com/watch?v=dQw4w9WgXcQ", parsed[0].url)
+        assertEquals("My Top Tracks", parsed[0].playlist)
+
+        assertEquals("Despacito", parsed[1].title)
+        assertEquals("Luis Fonsi, Daddy Yankee", parsed[1].artist)
+        assertEquals("VIDA", parsed[1].album)
+        assertEquals(282, parsed[1].durationSec)
+        assertEquals("kJQP7kiw5Fk", parsed[1].videoId)
+    }
+
+    @Test
+    fun parseCsvWithYouTubeUrlsExtractsVideoId() {
+        val csv = """
+            Song Name,Artist Name,YouTube Link
+            "Song One","Artist A","https://www.youtube.com/watch?v=abc12345678"
+            "Song Two","Artist B","https://youtu.be/xyz98765432"
+        """.trimIndent()
+
+        val parsed = CsvTrackParser.parse(csv)
+        assertEquals(2, parsed.size)
+        assertEquals("abc12345678", parsed[0].videoId)
+        assertEquals("xyz98765432", parsed[1].videoId)
+    }
+
+    @Test
     fun parseAllUploadedUserCsvFiles() {
         val files = listOf(
             "C:/Users/karth/.gemini/antigravity/brain/d0d72f49-18eb-4d64-a1b3-268c935f9f75/.user_uploaded/media_1794165818229_00d59560.csv",

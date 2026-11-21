@@ -25,7 +25,8 @@ class PlaylistOrderingTest {
         }
 
         fun removeTrackFromPlaylist(playlistId: Long, videoId: String) {
-            tracks.removeAll { it.playlistId == playlistId && it.videoId == videoId }
+            val idx = tracks.indexOfFirst { it.playlistId == playlistId && it.videoId == videoId }
+            if (idx >= 0) tracks.removeAt(idx)
         }
 
         fun addTrackToPlaylist(playlistId: Long, videoId: String) {
@@ -108,21 +109,33 @@ class PlaylistOrderingTest {
     }
 
     @Test
-    fun addTrackToPlaylist_reAddingExistingTrack_movesTrackToFirstPosition() {
+    fun addTrackToPlaylist_duplicateTrack_addsMultiCopyOfExactSameSong() {
         val dao = MockPlaylistDao()
         val playlistId = 4L
         dao.addTracksToPlaylist(playlistId, listOf("track_A", "track_B", "track_C"))
 
-        // Simulate repository addTrackToPlaylist promotion:
+        // Multi-copy: Adding track_C again adds another copy to the playlist without deleting existing copies
         val reAddedTrack = "track_C"
-        if (dao.isTrackInPlaylist(playlistId, reAddedTrack)) {
-            dao.removeTrackFromPlaylist(playlistId, reAddedTrack)
-        }
         dao.addTrackToPlaylist(playlistId, reAddedTrack)
 
         val ordered = dao.getPlaylistVideoIdsOrdered(playlistId)
-        // track_C must now be first, followed by A and B
-        assertEquals(listOf("track_C", "track_A", "track_B"), ordered)
+        // track_C was added again at top position (-1), keeping the original track_C (pos 2)
+        assertEquals(listOf("track_C", "track_A", "track_B", "track_C"), ordered)
+        assertEquals(2, ordered.count { it == "track_C" })
+    }
+
+    @Test
+    fun removeTrackFromPlaylist_withDuplicates_removesOnlySingleInstance() {
+        val dao = MockPlaylistDao()
+        val playlistId = 7L
+        dao.addTracksToPlaylist(playlistId, listOf("track_A", "track_B", "track_A"))
+
+        // Removing track_A should remove only one instance
+        dao.removeTrackFromPlaylist(playlistId, "track_A")
+
+        val ordered = dao.getPlaylistVideoIdsOrdered(playlistId)
+        assertEquals(listOf("track_B", "track_A"), ordered)
+        assertEquals(1, ordered.count { it == "track_A" })
     }
 
     @Test

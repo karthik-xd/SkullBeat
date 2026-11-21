@@ -353,7 +353,7 @@ fun SkullBeatNavHost(
                                 if (added) {
                                     Toast.makeText(context, "Added to ${pl.name}", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Already in ${pl.name} (moved to top)", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Added another copy to ${pl.name}", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         } catch (e: Exception) {
@@ -462,7 +462,9 @@ fun SkullBeatNavHost(
                 repository = repository,
                 onImportSuccess = { playlistId ->
                     importUrlToOpen = null
-                    navController.navigate(Screen.PlaylistDetail.createRoute(playlistId))
+                    if (playlistId > 0) {
+                        navController.navigate(Screen.PlaylistDetail.createRoute(playlistId))
+                    }
                 },
                 onDismiss = { importUrlToOpen = null }
             )

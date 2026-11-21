@@ -48,8 +48,19 @@ interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistTracks(playlistTracks: List<PlaylistTrack>)
 
-    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND videoId = :videoId")
+    @Query("""
+        DELETE FROM playlist_tracks 
+        WHERE playlistId = :playlistId 
+          AND position = (
+              SELECT position FROM playlist_tracks 
+              WHERE playlistId = :playlistId AND videoId = :videoId 
+              ORDER BY position ASC LIMIT 1
+          )
+    """)
     suspend fun removeTrackFromPlaylist(playlistId: Long, videoId: String)
+
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND videoId = :videoId")
+    suspend fun removeAllTracksFromPlaylist(playlistId: Long, videoId: String)
 
     @Query("SELECT MIN(position) FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun getMinPosition(playlistId: Long): Int?

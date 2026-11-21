@@ -534,39 +534,63 @@ def api_import_csv(req: CsvImportRequest):
             title = ""
             artist = ""
             album = ""
-            duration_ms = 0
+            duration_sec = 0
+            video_id = ""
+            url = ""
             for k, v in row.items():
-                if not k:
+                if not k or not v:
                     continue
                 k_clean = k.strip().lower()
-                if "track name" in k_clean:
-                    title = v.strip()
-                elif "artist name" in k_clean:
-                    artist = v.strip().replace(";", ", ")
-                elif "album name" in k_clean:
-                    album = v.strip()
-                elif "duration (ms)" in k_clean:
+                val = str(v).strip()
+                if k_clean in ("title", "track", "track name", "song", "song name", "song title", "name"):
+                    title = val
+                elif k_clean in ("artist", "artists", "artist name", "artist name(s)", "artist names", "channel", "uploader", "author"):
+                    artist = val.replace(";", ", ")
+                elif k_clean in ("album", "album name", "record"):
+                    album = val
+                elif "duration" in k_clean or k_clean in ("time", "length"):
                     try:
-                        duration_ms = int(v.strip())
+                        if ":" in val:
+                            parts = val.split(":")
+                            duration_sec = int(parts[0]) * 60 + int(parts[1])
+                        else:
+                            num = int(float(val))
+                            duration_sec = num // 1000 if num > 10000 else num
                     except Exception:
-                        duration_ms = 0
+                        duration_sec = 0
+                elif k_clean in ("videoid", "video id", "ytid", "id"):
+                    video_id = val
+                elif k_clean in ("url", "link"):
+                    url = val
 
             if not title:
                 continue
 
-            mins = duration_ms // 60000
-            secs = (duration_ms % 60000) // 1000
-            duration_str = f"{mins}:{secs:02d}" if duration_ms > 0 else "3:30"
-            fake_hash = hashlib.md5(f"{title}_{artist}_{idx}".encode()).hexdigest()[:11]
+            if not video_id and url:
+                m = re.search(r"(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})", url)
+                if m:
+                    video_id = m.group(1)
+
+            mins = duration_sec // 60 if duration_sec > 0 else 3
+            secs = duration_sec % 60 if duration_sec > 0 else 30
+            duration_str = f"{mins}:{secs:02d}"
+
+            if video_id and len(video_id) == 11 and not video_id.startswith("pending"):
+                final_vid = video_id
+                thumb = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            else:
+                fake_hash = hashlib.md5(f"{title}_{artist}_{idx}".encode()).hexdigest()[:11]
+                final_vid = f"pending_{fake_hash}"
+                thumb = "/logo.png"
 
             tracks.append({
-                "videoId": f"pending_{fake_hash}",
+                "videoId": final_vid,
                 "title": title,
                 "channel": artist or "Unknown Artist",
                 "artist": artist or "Unknown Artist",
-                "album": album or "Imported",
+                "album": album or "Single",
                 "duration": duration_str,
-                "thumbnail": "/logo.png"
+                "thumbnail": thumb
             })
 
         if not tracks:
@@ -608,7 +632,12 @@ def api_import_csv(req: CsvImportRequest):
             "color": req.color or "#3D8BFF"
         }
         if "liked" in name.lower() or "favorite" in name.lower():
-            lib["favorites"] = tracks
+            lib.setdefault("favorites", [])
+            existing_ids = {f.get("videoId") for f in lib["favorites"] if isinstance(f, dict)}
+            for t in tracks:
+                if t.get("videoId") not in existing_ids:
+                    lib["favorites"].append(t)
+                    existing_ids.add(t.get("videoId"))
 
         with open(LIBRARY_FILE, "w", encoding="utf-8") as f:
             json.dump(lib, f, ensure_ascii=False, indent=2)
@@ -967,6 +996,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radiu
   <button class="ctx-item" id="ctx-play"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play Now</button>
   <button class="ctx-item" id="ctx-queue"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add to Queue (FIFO)</button>
   <button class="ctx-item" id="ctx-like"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Like / Favorite</button>
+  <button class="ctx-item" id="ctx-add-pl"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add Copy to Playlist...</button>
+  <button class="ctx-item" id="ctx-remove-pl" style="display:none;color:#ff4b4b"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>Remove This Copy</button>
   <button class="ctx-item" id="ctx-dl"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 3v13m0 0l4-4m-4 4l-4-4M4 17v4h16v-4"/></svg>Download MP3</button>
 </div>
 
@@ -1248,7 +1279,7 @@ function rows(list,empty){
     var bg=trackBg(t,i);
     var liked=isLiked(t.videoId||t.id);
     var tid=esc(t.videoId||t.id);
-    return'<div class="tr'+(cur?' cur':'')+'" role="button" tabindex="0" data-tid="'+tid+'">'
+    return'<div class="tr'+(cur?' cur':'')+'" role="button" tabindex="0" data-tid="'+tid+'" data-idx="'+i+'">'
          +'<span class="n">'+(i+1)+'</span>'
          +'<div class="nm"><i style="background:'+bg+'"></i><div><p class="t">'+esc(t.t)+'</p><p class="a">'+esc(t.a)+'</p></div></div>'
          +'<p class="al2">'+esc(t.al||'Single')+'</p>'
@@ -1861,6 +1892,7 @@ function playPlaylist(name,startIdx){
 
 /* Desktop Context Menu Manager */
 var ctxTargetTrack=null;
+var ctxTargetIdx=-1;
 var ctxMenu=$('#ctx-menu');
 
 document.addEventListener('contextmenu',function(e){
@@ -1868,10 +1900,14 @@ document.addEventListener('contextmenu',function(e){
   if(r){
     e.preventDefault();
     var tid=r.dataset.tid;
+    ctxTargetIdx=r.dataset.idx!==undefined?parseInt(r.dataset.idx,10):-1;
     ctxTargetTrack=findTrackById(tid);
     if(ctxTargetTrack){
+      var isPlView = (S.tab==='playlist'&&S.selectedPlaylist);
+      var rmBtn = $('#ctx-remove-pl');
+      if(rmBtn) rmBtn.style.display = isPlView ? 'flex' : 'none';
       ctxMenu.style.left=Math.min(e.clientX,window.innerWidth-180)+'px';
-      ctxMenu.style.top=Math.min(e.clientY,window.innerHeight-130)+'px';
+      ctxMenu.style.top=Math.min(e.clientY,window.innerHeight-180)+'px';
       ctxMenu.classList.add('on');
     }
   }else if(!e.target.closest('#rep')){
@@ -1895,6 +1931,43 @@ $('#ctx-like').onclick=function(){
     if(S.likedIds.has(id))S.likedIds.delete(id);else S.likedIds.add(id);
     paintPlayer();
     saveFavorites();
+  }
+};
+$('#ctx-add-pl').onclick=function(){
+  ctxMenu.classList.remove('on');
+  if(!ctxTargetTrack)return;
+  var plKeys=Object.keys(S.playlists);
+  var targetPl=S.selectedPlaylist||(plKeys.length?plKeys[0]:null);
+  var promptName=prompt('Enter playlist name to add copy (multi-copy enabled):', targetPl||'My Playlist');
+  if(promptName&&promptName.trim()){
+    var name=promptName.trim();
+    if(!S.playlists[name])S.playlists[name]={songs:[],emoji:'🎵',color:'#3D8BFF'};
+    var pSongs=Array.isArray(S.playlists[name])?S.playlists[name]:(S.playlists[name].songs||[]);
+    pSongs.push({
+      videoId:ctxTargetTrack.videoId||ctxTargetTrack.id||'',
+      title:ctxTargetTrack.t||ctxTargetTrack.title||'',
+      artist:ctxTargetTrack.a||ctxTargetTrack.artist||'',
+      album:ctxTargetTrack.al||ctxTargetTrack.album||name,
+      duration:ctxTargetTrack.d||ctxTargetTrack.duration||0,
+      thumbnail:ctxTargetTrack.thumbnail||''
+    });
+    if(!Array.isArray(S.playlists[name]))S.playlists[name].songs=pSongs;
+    saveFavorites();
+    paint();
+    showToast('Added copy to ' + name);
+  }
+};
+$('#ctx-remove-pl').onclick=function(){
+  ctxMenu.classList.remove('on');
+  if(S.tab==='playlist'&&S.selectedPlaylist&&ctxTargetIdx>=0){
+    var val=S.playlists[S.selectedPlaylist];
+    var sList=Array.isArray(val)?val:(val&&val.songs?val.songs:[]);
+    if(ctxTargetIdx<sList.length){
+      var removed=sList.splice(ctxTargetIdx,1);
+      saveFavorites();
+      paint();
+      showToast('Removed copy of '+(removed[0]?removed[0].title:'song'));
+    }
   }
 };
 $('#ctx-dl').onclick=function(){
@@ -2048,6 +2121,7 @@ document.addEventListener('click',function(e){
   var r=e.target.closest('[data-tid]');
   if(r){
     var id=r.dataset.tid;
+    var rowIdx=r.dataset.idx!==undefined?parseInt(r.dataset.idx,10):-1;
     var t=findTrackById(id);
     if(t){
       // Set context depending on current view
@@ -2067,7 +2141,7 @@ document.addEventListener('click',function(e){
           };
         });
         S.contextName=S.selectedPlaylist;
-        S.contextIdx=S.context.findIndex(function(x){return(x.videoId&&x.videoId===id)||(x.id&&x.id===id)});
+        S.contextIdx=(rowIdx>=0&&rowIdx<S.context.length)?rowIdx:S.context.findIndex(function(x){return(x.videoId&&x.videoId===id)||(x.id&&x.id===id)});
       }else if(S.tab==='all'){
         S.context=S.allTracks;
         S.contextName='Library';

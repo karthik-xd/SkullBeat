@@ -166,13 +166,40 @@ class LibraryViewModel @Inject constructor(
 
     fun exportFilteredCsv() {
         val list = filteredTracks.value
-        val content = TrackExporter.toCsv(list)
-        TrackExporter.shareExport(context, "csv", content, "text/csv", getExportPrefix())
+        val prefix = getExportPrefix()
+        val content = TrackExporter.toCsv(list, prefix.replace("_", " "))
+        TrackExporter.shareExport(context, "csv", content, "text/csv", prefix)
     }
 
     fun exportFilteredJson() {
         val list = filteredTracks.value
         val content = TrackExporter.toJson(list)
         TrackExporter.shareExport(context, "json", content, "application/json", getExportPrefix())
+    }
+
+    fun exportLikedSongsCsv() {
+        val list = favoriteTracks.value
+        val content = TrackExporter.toCsv(list, "Liked Songs")
+        TrackExporter.shareExport(context, "csv", content, "text/csv", "Liked_Songs")
+    }
+
+    fun exportDownloadsCsv() {
+        val list = downloadedTracks.value.map { it.toTrack() }
+        val content = TrackExporter.toCsv(list, "Downloads")
+        TrackExporter.shareExport(context, "csv", content, "text/csv", "Downloaded_Songs")
+    }
+
+    fun exportPlaylistCsv(playlist: Playlist) {
+        viewModelScope.launch {
+            val tracks = repository.getPlaylistTracksList(playlist.id)
+            val content = TrackExporter.toCsv(tracks, playlist.name)
+            TrackExporter.shareExport(context, "csv", content, "text/csv", playlist.name.ifBlank { "Playlist" })
+        }
+    }
+
+    fun exportAllCsv() {
+        val list = allTracks.value
+        val content = TrackExporter.toCsv(list, "Library")
+        TrackExporter.shareExport(context, "csv", content, "text/csv", "Library_All_Songs")
     }
 }
