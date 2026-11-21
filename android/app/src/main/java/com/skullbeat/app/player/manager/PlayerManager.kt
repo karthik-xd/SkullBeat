@@ -467,23 +467,23 @@ class PlayerManager @Inject constructor(
                 val nextTrackIndex = state.shuffleOrder[nextShufflePos]
                 val nextTrack = tracks[nextTrackIndex]
                 _playbackState.update { it.copy(shufflePosition = nextShufflePos) }
-                playTrack(nextTrack, tracks, state.contextType, state.contextId)
+                playTrack(nextTrack, tracks, state.contextType, state.contextId, initialIndex = nextTrackIndex)
                 return
             } else if (state.repeatMode == RepeatState.ALL) {
                 val newShuffleOrder = QueueHelper.generateShuffleOrder(tracks.size, 0)
                 val nextTrack = tracks[newShuffleOrder[0]]
                 _playbackState.update { it.copy(shuffleOrder = newShuffleOrder, shufflePosition = 0) }
-                playTrack(nextTrack, tracks, state.contextType, state.contextId)
+                playTrack(nextTrack, tracks, state.contextType, state.contextId, initialIndex = newShuffleOrder[0])
                 return
             }
         } else {
             // If random is not selected -> go by playlist order
             val nextIndex = state.currentIndex + 1
             if (nextIndex < tracks.size) {
-                playTrack(tracks[nextIndex], tracks, state.contextType, state.contextId)
+                playTrack(tracks[nextIndex], tracks, state.contextType, state.contextId, initialIndex = nextIndex)
                 return
             } else if (state.repeatMode == RepeatState.ALL) {
-                playTrack(tracks[0], tracks, state.contextType, state.contextId)
+                playTrack(tracks[0], tracks, state.contextType, state.contextId, initialIndex = 0)
                 return
             }
         }
@@ -517,18 +517,19 @@ class PlayerManager @Inject constructor(
         if (state.isShuffle && state.shuffleOrder.isNotEmpty()) {
             val prevShufflePos = state.shufflePosition - 1
             if (prevShufflePos >= 0) {
-                val prevTrack = tracks[state.shuffleOrder[prevShufflePos]]
+                val prevTrackIndex = state.shuffleOrder[prevShufflePos]
+                val prevTrack = tracks[prevTrackIndex]
                 _playbackState.update { it.copy(shufflePosition = prevShufflePos) }
-                playTrack(prevTrack, tracks, state.contextType, state.contextId)
+                playTrack(prevTrack, tracks, state.contextType, state.contextId, initialIndex = prevTrackIndex)
                 return
             }
         }
 
         val prevIndex = state.currentIndex - 1
         if (prevIndex >= 0) {
-            playTrack(tracks[prevIndex], tracks, state.contextType, state.contextId)
+            playTrack(tracks[prevIndex], tracks, state.contextType, state.contextId, initialIndex = prevIndex)
         } else if (state.repeatMode == RepeatState.ALL && tracks.isNotEmpty()) {
-            playTrack(tracks[tracks.size - 1], tracks, state.contextType, state.contextId)
+            playTrack(tracks[tracks.size - 1], tracks, state.contextType, state.contextId, initialIndex = tracks.size - 1)
         } else {
             exoPlayer.seekTo(0)
         }
