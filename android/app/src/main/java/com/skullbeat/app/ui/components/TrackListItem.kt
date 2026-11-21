@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
@@ -39,6 +40,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Precision
 import com.skullbeat.app.domain.models.Track
+import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
 import com.skullbeat.app.ui.theme.HeartRed
 import com.skullbeat.app.ui.theme.RaisedDark
@@ -55,6 +57,7 @@ fun TrackListItem(
     onToggleFavorite: () -> Unit = {},
     onAddToPlaylist: () -> Unit = {},
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    onDuplicateTrack: (() -> Unit)? = null,
     onDownload: () -> Unit = {},
     onArtistClick: ((String) -> Unit)? = null,
     onSwipeToQueue: (() -> Unit)? = null,
@@ -184,6 +187,23 @@ fun TrackListItem(
                             onAddToPlaylist()
                         }
                     )
+                    if (onDuplicateTrack != null) {
+                        DropdownMenuItem(
+                            text = { Text("Add another copy") },
+                            onClick = {
+                                showMenu = false
+                                onDuplicateTrack()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add another copy",
+                                    tint = CyanAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                    }
                     if (onRemoveFromPlaylist != null) {
                         DropdownMenuItem(
                             text = { Text("Remove from Playlist", color = HeartRed) },

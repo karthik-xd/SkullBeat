@@ -411,6 +411,10 @@ fun PlaylistDetailScreen(
                         onClick = { viewModel.playTrack(track, index) },
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
                         onAddToPlaylist = { onAddToPlaylist(track) },
+                        onDuplicateTrack = {
+                            viewModel.addTrack(track)
+                            Toast.makeText(context, "Added another copy of \"${track.title}\" to playlist", Toast.LENGTH_SHORT).show()
+                        },
                         onRemoveFromPlaylist = {
                             viewModel.removeTrack(track.videoId)
                             Toast.makeText(context, "Removed from playlist", Toast.LENGTH_SHORT).show()
