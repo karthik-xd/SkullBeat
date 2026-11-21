@@ -915,8 +915,22 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radiu
     <h3>Import Playlist / CSV</h3>
     <input id="import-url" placeholder="Paste Spotify or YouTube playlist URL..." autocomplete="off">
     <div style="font-size:12px;color:var(--mu);text-align:center">OR</div>
-    <button class="chip" onclick="document.getElementById('csv-in').click()" style="text-align:center">Select Spotify Export CSV file...</button>
-    <input type="file" id="csv-in" accept=".csv" style="display:none">
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="chip" onclick="document.getElementById('csv-in').click()" style="flex:1;text-align:center">Select CSV File(s)...</button>
+      <button class="chip" onclick="document.getElementById('csv-folder-in').click()" style="flex:1;text-align:center">Select CSV Folder...</button>
+    </div>
+    <input type="file" id="csv-in" accept=".csv" multiple style="display:none">
+    <input type="file" id="csv-folder-in" webkitdirectory directory style="display:none">
+    <div id="import-progress" style="display:none;margin-top:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span id="import-status" style="color:var(--tx);font-weight:600">Mapping songs...</span>
+        <span id="import-eta" style="color:var(--cyan);font-weight:700">Estimating...</span>
+      </div>
+      <div style="background:var(--s2);height:6px;border-radius:3px;overflow:hidden">
+        <div id="import-bar" style="background:var(--grad);width:5%;height:100%;transition:width .2s"></div>
+      </div>
+      <div style="font-size:11px;color:var(--mu);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="import-song"></div>
+    </div>
     <div class="modal-btns">
       <button class="btn-s" onclick="closeImport()">Cancel</button>
       <button class="btn-p" onclick="doImportUrl()">Import URL</button>
@@ -2104,59 +2118,119 @@ $('#exp').onclick=function(){
 };
 
 /* Import Modal */
-function openImport(){$('#import-modal').classList.add('on')}
-function closeImport(){$('#import-modal').classList.remove('on')}
+function openImport(){$('#import-modal').classList.add('on');hideImportProgress()}
+function closeImport(){$('#import-modal').classList.remove('on');hideImportProgress()}
 $('#add-pl').onclick=openImport;
+
+function updateImportProgress(status, eta, pct, song){
+  var p=$('#import-progress');
+  if(!p)return;
+  p.style.display='block';
+  if(status)$('#import-status').textContent=status;
+  if(eta)$('#import-eta').textContent=eta;
+  if(pct!==undefined)$('#import-bar').style.width=Math.min(100,Math.max(5,pct))+'%';
+  if(song!==undefined)$('#import-song').textContent=song;
+}
+function hideImportProgress(){
+  var p=$('#import-progress');
+  if(p)p.style.display='none';
+}
+function formatEtaTime(sec){
+  if(sec<=2)return 'a few seconds';
+  if(sec<60)return sec+'s left';
+  var m=Math.floor(sec/60), s=sec%60;
+  return s===0?m+'m left':m+'m '+s+'s left';
+}
 
 async function doImportUrl(){
   var url=$('#import-url').value.trim();
   if(!url)return;
-  closeImport();
-  alert('Importing '+url+' ...');
+  updateImportProgress('Connecting to playlist...', 'Estimating...', 15, url);
+  var startTime = Date.now();
+  var etaTimer = setInterval(function(){
+    var elapsed = (Date.now() - startTime) / 1000;
+    if(elapsed > 2){
+      var estTotal = url.includes('spotify') ? 10 : 3;
+      var rem = Math.max(1, Math.round(estTotal - elapsed));
+      updateImportProgress(null, '~' + rem + 's left', Math.min(85, Math.round((elapsed / estTotal) * 100)));
+    }
+  }, 1000);
   try{
     var res=await fetch('/api/playlist?url='+encodeURIComponent(url));
     var data=await res.json();
+    clearInterval(etaTimer);
     if(data.success||data.tracks){
       var count=(data.total||data.count||(data.tracks?data.tracks.length:0));
       var plName=data.title||'Imported Playlist';
+      updateImportProgress('Finalizing ' + count + ' tracks...', 'Done', 100, plName);
       if(data.tracks&&data.tracks.length){
         S.playlists[plName]={songs:data.tracks,emoji:'🎵',color:'#3D8BFF'};
         await saveFavorites();
       }
-      alert('Imported '+count+' tracks successfully into "'+plName+'"!');
-      loadLibrary();
+      setTimeout(function(){
+        closeImport();
+        showToast('Imported ' + count + ' tracks into "' + plName + '"!');
+        loadLibrary();
+      }, 500);
     }else{
-      alert('Import failed: '+(data.detail||data.message||'Unknown error'));
+      clearInterval(etaTimer);
+      hideImportProgress();
+      showToast('Import failed: ' + (data.detail||data.message||'Unknown error'));
     }
   }catch(e){
-    alert('Import error: '+e.message);
+    clearInterval(etaTimer);
+    hideImportProgress();
+    showToast('Import error: ' + e.message);
   }
 }
 
-$('#csv-in').onchange=async function(e){
-  var file=e.target.files[0];
-  if(!file)return;
-  var name=file.name.replace(/\.[^/.]+$/,'');
-  var content=await file.text();
-  closeImport();
-  alert('Importing '+file.name+' ...');
-  try{
-    var res=await fetch('/api/import_csv',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:name,playlist_name:name,content:content})
-    });
-    var data=await res.json();
-    if(data.success||data.status==='success'){
-      alert('Imported '+data.count+' tracks into "'+(data.playlist_name||name)+'"!');
-      loadLibrary();
-    }else{
-      alert('Import error: '+(data.detail||'Failed'));
+async function handleCsvFiles(files){
+  if(!files||!files.length)return;
+  var validFiles = Array.from(files).filter(function(f){ return f.name.toLowerCase().endsWith('.csv'); });
+  if(!validFiles.length){ showToast('No .csv files found.'); return; }
+  
+  var totalImported = 0;
+  var successCount = 0;
+  var startTime = Date.now();
+  
+  for(var i=0; i<validFiles.length; i++){
+    var file = validFiles[i];
+    var pct = Math.round(((i) / validFiles.length) * 100);
+    var elapsed = (Date.now() - startTime) / 1000;
+    var eta = 'Estimating...';
+    if(i > 0 && elapsed > 0.5){
+      var speed = i / elapsed;
+      var rem = Math.round((validFiles.length - i) / speed);
+      eta = '~' + formatEtaTime(rem) + ' (' + speed.toFixed(1) + ' files/s)';
     }
-  }catch(err){
-    alert('Import failed: '+err.message);
+    updateImportProgress('Mapping file ' + (i+1) + ' of ' + validFiles.length + '...', eta, pct, file.name);
+    
+    var name = file.name.replace(/\.[^/.]+$/, '');
+    var content = await file.text();
+    try{
+      var res = await fetch('/api/import_csv',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:name, playlist_name:name, content:content})
+      });
+      var data = await res.json();
+      if(data.success || data.status==='success'){
+        totalImported += (data.count || 0);
+        successCount++;
+      }
+    }catch(err){}
   }
-};
+  updateImportProgress('Done! Finalizing library...', 'Done', 100, 'Imported ' + totalImported + ' songs');
+  setTimeout(function(){
+    closeImport();
+    showToast('Added ' + totalImported + ' tracks from ' + successCount + ' CSV file(s).');
+    loadLibrary();
+  }, 600);
+}
+
+$('#csv-in').onchange=function(e){ handleCsvFiles(e.target.files); };
+var csvFolderIn=$('#csv-folder-in');
+if(csvFolderIn) csvFolderIn.onchange=function(e){ handleCsvFiles(e.target.files); };
 
 /* Init / Data Loading */
 async function loadLibrary(){
