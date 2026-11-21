@@ -32,6 +32,7 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class DownloadWorker(
@@ -134,7 +135,7 @@ class DownloadWorker(
             val buffer = ByteArray(128 * 1024)
             var bytesWritten = 0L
             var bytesRead: Int
-            var lastProgress = 0
+            val downloadStartTime = System.currentTimeMillis()
             var lastNotificationTime = System.currentTimeMillis()
 
             BufferedInputStream(rawInputStream, 128 * 1024).use { bufferedInput ->
@@ -150,18 +151,57 @@ class DownloadWorker(
                         outputStream.write(buffer, 0, bytesRead)
                         bytesWritten += bytesRead
 
-                        if (contentLength > 0) {
-                            val progress = ((bytesWritten * 100) / contentLength).toInt().coerceIn(0, 100)
-                            val now = System.currentTimeMillis()
-                            if ((progress - lastProgress >= 5 && now - lastNotificationTime >= 500L) || progress == 100) {
-                                lastProgress = progress
-                                lastNotificationTime = now
-                                notificationManager.notify(
-                                    notificationId,
-                                    buildProgressNotification(title, progress, videoId).build()
-                                )
-                                setProgress(workDataOf("progress" to progress))
+                        val now = System.currentTimeMillis()
+                        val elapsedSec = (now - downloadStartTime) / 1000.0
+
+                        if (now - lastNotificationTime >= 400L || (contentLength > 0 && bytesWritten == contentLength)) {
+                            lastNotificationTime = now
+                            val progress = if (contentLength > 0) {
+                                ((bytesWritten * 100) / contentLength).toInt().coerceIn(0, 100)
+                            } else {
+                                0
                             }
+
+                            val speedBytesPerSec = if (elapsedSec > 0.2) bytesWritten / elapsedSec else 0.0
+                            val speedFormatted = formatDownloadSpeed(speedBytesPerSec)
+
+                            val remainingBytes = (contentLength - bytesWritten).coerceAtLeast(0L)
+                            val remainingSec = if (speedBytesPerSec > 1024.0) (remainingBytes / speedBytesPerSec).toLong() else 0L
+                            val formattedEta = if (contentLength > 0 && speedBytesPerSec > 1024.0) {
+                                formatDownloadEta(remainingSec)
+                            } else {
+                                "calculating..."
+                            }
+
+                            val writtenMb = String.format(Locale.US, "%.1f MB", bytesWritten / (1024.0 * 1024.0))
+                            val totalMb = if (contentLength > 0) String.format(Locale.US, "%.1f MB", contentLength / (1024.0 * 1024.0)) else ""
+                            val statusLine = if (totalMb.isNotEmpty()) {
+                                "~$formattedEta left ($speedFormatted) • $writtenMb / $totalMb"
+                            } else {
+                                "$writtenMb downloaded ($speedFormatted)"
+                            }
+
+                            manager.updateProgress(
+                                DownloadProgressInfo(
+                                    videoId = videoId,
+                                    progressPercent = progress,
+                                    bytesWritten = bytesWritten,
+                                    totalBytes = contentLength,
+                                    speedFormatted = speedFormatted,
+                                    formattedEta = formattedEta
+                                )
+                            )
+
+                            notificationManager.notify(
+                                notificationId,
+                                buildProgressNotification(
+                                    title = title,
+                                    progress = progress,
+                                    videoId = videoId,
+                                    statusText = statusLine
+                                ).build()
+                            )
+                            setProgress(workDataOf("progress" to progress, "eta" to formattedEta, "speed" to speedFormatted))
                         }
                     }
                     outputStream.flush()
@@ -254,7 +294,8 @@ class DownloadWorker(
     private fun buildProgressNotification(
         title: String,
         progress: Int,
-        videoId: String
+        videoId: String,
+        statusText: String = title
     ): NotificationCompat.Builder {
         val cancelIntent = Intent(context, DownloadCancelReceiver::class.java).apply {
             putExtra(KEY_VIDEO_ID, videoId)
@@ -266,10 +307,12 @@ class DownloadWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val displayTitle = if (progress in 1..99) "Downloading: $title ($progress%)" else "Downloading: $title"
+
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Downloading Track")
-            .setContentText(title)
+            .setContentTitle(displayTitle)
+            .setContentText(statusText)
             .setProgress(100, progress, progress == 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -278,6 +321,31 @@ class DownloadWorker(
                 "Cancel",
                 cancelPendingIntent
             )
+    }
+
+    private fun formatDownloadSpeed(bytesPerSec: Double): String {
+        return when {
+            bytesPerSec >= 1024.0 * 1024.0 -> String.format(Locale.US, "%.1f MB/s", bytesPerSec / (1024.0 * 1024.0))
+            bytesPerSec >= 1024.0 -> String.format(Locale.US, "%.0f KB/s", bytesPerSec / 1024.0)
+            else -> String.format(Locale.US, "%.0f B/s", bytesPerSec)
+        }
+    }
+
+    private fun formatDownloadEta(seconds: Long): String {
+        return when {
+            seconds <= 2 -> "a few seconds"
+            seconds < 60 -> "${seconds}s"
+            seconds < 3600 -> {
+                val m = seconds / 60
+                val s = seconds % 60
+                if (s == 0L) "${m}m" else "${m}m ${s}s"
+            }
+            else -> {
+                val h = seconds / 3600
+                val m = (seconds % 3600) / 60
+                if (m == 0L) "${h}h" else "${h}h ${m}m"
+            }
+        }
     }
 
     private fun createNotificationChannel() {

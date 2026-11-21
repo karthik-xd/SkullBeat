@@ -22,6 +22,15 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class DownloadProgressInfo(
+    val videoId: String,
+    val progressPercent: Int = 0,
+    val bytesWritten: Long = 0L,
+    val totalBytes: Long = 0L,
+    val speedFormatted: String = "",
+    val formattedEta: String = ""
+)
+
 @Singleton
 class DownloadedTracksManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -46,6 +55,9 @@ class DownloadedTracksManager @Inject constructor(
 
     private val _activeDownloads = MutableStateFlow<Set<String>>(emptySet())
     val activeDownloads: StateFlow<Set<String>> = _activeDownloads.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow<Map<String, DownloadProgressInfo>>(emptyMap())
+    val downloadProgress: StateFlow<Map<String, DownloadProgressInfo>> = _downloadProgress.asStateFlow()
 
     init {
         instance = this
@@ -98,12 +110,22 @@ class DownloadedTracksManager @Inject constructor(
         return _activeDownloads.value.contains(videoId)
     }
 
+    fun updateProgress(info: DownloadProgressInfo) {
+        _downloadProgress.value = _downloadProgress.value + (info.videoId to info)
+    }
+
+    fun getDownloadProgress(videoId: String): DownloadProgressInfo? {
+        return _downloadProgress.value[videoId]
+    }
+
     fun markDownloadStarted(videoId: String) {
         _activeDownloads.value = _activeDownloads.value + videoId
+        _downloadProgress.value = _downloadProgress.value + (videoId to DownloadProgressInfo(videoId))
     }
 
     fun markDownloadFinished(videoId: String) {
         _activeDownloads.value = _activeDownloads.value - videoId
+        _downloadProgress.value = _downloadProgress.value - videoId
     }
 
     fun cancelDownload(videoId: String) {

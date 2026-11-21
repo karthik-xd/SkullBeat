@@ -1298,6 +1298,7 @@ function renderLib(){
                        +'<div style="display:flex;gap:8px">'
                        +'<button class="chip on" data-act="play-all" data-pl="'+esc(S.selectedPlaylist)+'">▶ Play All</button>'
                        +'<button class="chip" data-act="shuf-pl" data-pl="'+esc(S.selectedPlaylist)+'">🔀 Shuffle</button>'
+                       +'<button class="chip" data-act="export-this-pl" data-pl="'+esc(S.selectedPlaylist)+'">📥 Export CSV</button>'
                        +'<button class="chip" data-act="back-playlists">← Back</button>'
                        +'</div></div>'
                        +rows(filtered,'No tracks match your filters');
@@ -2018,6 +2019,19 @@ document.addEventListener('click',function(e){
     return;
   }
 
+  // Export playlist CSV button
+  var expPl=e.target.closest('[data-act="export-this-pl"]');
+  if(expPl){
+    var plName=expPl.dataset.pl||S.selectedPlaylist;
+    var val=S.playlists[plName];
+    var list=Array.isArray(val)?val:(val&&val.songs?val.songs:[]);
+    var mapped=list.map(function(item){
+      return { t: item.title, a: item.channel||item.artist||'', al: item.album||plName||'', d: parseSec(item.duration), videoId: item.videoId||'' };
+    });
+    exportTrackListCsv(mapped, plName);
+    return;
+  }
+
   // Like heart
   var l=e.target.closest('[data-like]');
   if(l){
@@ -2110,11 +2124,39 @@ document.querySelector('.tabs').onclick=function(e){
   if(b){S.panel=b.dataset.p;paintPanel()}
 };
 
-/* Export */
+/* Export CSV (Metadata Only, Zero Audio Downloads) */
+function exportTrackListCsv(list, defaultName){
+  if(!list||!list.length){ showToast('No tracks to export'); return; }
+  var csv='Title,Artist,Album,Duration,VideoId,URL\n'+list.map(function(t){
+    var vid = t.videoId || t.id || '';
+    var url = vid ? 'https://www.youtube.com/watch?v=' + vid : '';
+    return [t.t, t.a, t.al || '', t.d || 0, vid, url].map(function(v){
+      return '"' + String(v).replace(/"/g, '""') + '"';
+    }).join(',');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = (defaultName || 'skullbeat_playlist').replace(/[^a-zA-Z0-9_-]/g, '_') + '.csv';
+  a.click();
+  showToast('Exported CSV for ' + (defaultName || 'playlist') + ' (Metadata only)');
+}
+
 $('#exp').onclick=function(){
-  var list=S.allTracks.filter(function(t){return S.tab==='liked'?isLiked(t.videoId||t.id):true});
-  var csv='title,artist,album,duration,videoId\n'+list.map(function(t){return[t.t,t.a,t.al||'',t.d,t.videoId||''].map(function(v){return'"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
-  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='skullbeat-library.csv';a.click();
+  if(S.tab==='playlist'&&S.selectedPlaylist){
+    var val=S.playlists[S.selectedPlaylist];
+    var sList=Array.isArray(val)?val:(val&&val.songs?val.songs:[]);
+    var mapped=sList.map(function(item){
+      return { t: item.title, a: item.channel||item.artist||'', al: item.album||S.selectedPlaylist||'', d: parseSec(item.duration), videoId: item.videoId||'' };
+    });
+    exportTrackListCsv(mapped, S.selectedPlaylist);
+  } else if(S.tab==='liked'){
+    var liked=S.allTracks.filter(function(t){ return isLiked(t.videoId||t.id); });
+    exportTrackListCsv(liked, 'Liked_Songs');
+  } else if(S.tab==='history'){
+    exportTrackListCsv(S.history, 'History_Songs');
+  } else {
+    exportTrackListCsv(S.allTracks, 'Library_All_Songs');
+  }
 };
 
 /* Import Modal */

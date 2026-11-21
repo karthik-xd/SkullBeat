@@ -69,6 +69,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.skullbeat.app.domain.models.Playlist
 import com.skullbeat.app.domain.models.Track
+import com.skullbeat.app.download.DownloadProgressInfo
 import com.skullbeat.app.ui.components.SwipeAction
 import com.skullbeat.app.ui.components.SwipeToQueueBox
 import com.skullbeat.app.domain.util.FilterCriteria
@@ -103,6 +104,7 @@ fun LibraryScreen(
     val filteredTracks by viewModel.filteredTracks.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
 
     var showAddMenuSheet by remember { mutableStateOf(false) }
     var selectedFilterField by remember { mutableStateOf<String?>("Artist") }
@@ -496,6 +498,7 @@ fun LibraryScreen(
                                 track = track,
                                 isCurrentTrack = playbackState.currentTrack?.videoId == track.videoId,
                                 isMissing = isMissing,
+                                downloadInfo = downloadProgress[track.videoId],
                                 onDelete = if (selectedTab == LibraryTab.DOWNLOADS) {
                                     {
                                         viewModel.deleteDownloadedTrack(track.videoId)
@@ -610,6 +613,7 @@ private fun LibraryTrackRow(
     track: Track,
     isCurrentTrack: Boolean,
     isMissing: Boolean = false,
+    downloadInfo: DownloadProgressInfo? = null,
     onDelete: (() -> Unit)? = null,
     onClick: () -> Unit,
     onArtistClick: (String) -> Unit
@@ -693,13 +697,35 @@ private fun LibraryTrackRow(
             Spacer(modifier = Modifier.width(4.dp))
         }
 
-        Text(
-            text = track.durationFormatted.ifBlank { "" },
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 13.sp,
-                color = TextMuted
+        if (downloadInfo != null && downloadInfo.formattedEta.isNotBlank()) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${downloadInfo.progressPercent}% • ~${downloadInfo.formattedEta}",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+                if (downloadInfo.speedFormatted.isNotBlank()) {
+                    Text(
+                        text = downloadInfo.speedFormatted,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            color = TextMuted
+                        )
+                    )
+                }
+            }
+        } else {
+            Text(
+                text = track.durationFormatted.ifBlank { "" },
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 13.sp,
+                    color = TextMuted
+                )
             )
-        )
+        }
     }
 }
 

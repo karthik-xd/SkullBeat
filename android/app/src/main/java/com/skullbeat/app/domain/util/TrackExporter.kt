@@ -49,8 +49,12 @@ object TrackExporter {
         return array.toString(2)
     }
 
-    fun shareExport(context: Context, formatName: String, content: String, mimeType: String) {
-        val fileName = "skullbeat_export_${System.currentTimeMillis()}.$formatName"
+    fun shareExport(context: Context, formatName: String, content: String, mimeType: String, suggestedFileName: String? = null) {
+        val cleanPrefix = (suggestedFileName ?: "skullbeat_export")
+            .replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            .trim('_')
+            .ifBlank { "skullbeat_export" }
+        val fileName = "${cleanPrefix}_${System.currentTimeMillis()}.$formatName"
         val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
         val file = File(exportDir, fileName)
         file.writeText(content)
@@ -64,9 +68,10 @@ object TrackExporter {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = mimeType
             putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "$cleanPrefix (Metadata Only)")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Export SkullBeat Playlist"))
+        context.startActivity(Intent.createChooser(intent, "Export $cleanPrefix"))
     }
 
     private fun escapeCsv(str: String): String {

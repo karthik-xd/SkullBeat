@@ -10,6 +10,7 @@ import com.skullbeat.app.domain.repository.MusicRepository
 import com.skullbeat.app.domain.util.FilterCriteria
 import com.skullbeat.app.domain.util.TrackExporter
 import com.skullbeat.app.domain.util.TrackFilter
+import com.skullbeat.app.download.DownloadProgressInfo
 import com.skullbeat.app.download.DownloadedTracksManager
 import com.skullbeat.app.player.manager.PlaybackContextType
 import com.skullbeat.app.player.manager.PlayerManager
@@ -56,6 +57,8 @@ class LibraryViewModel @Inject constructor(
 
     val playlists: StateFlow<List<Playlist>> = repository.getPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val downloadProgress: StateFlow<Map<String, DownloadProgressInfo>> = downloadedTracksManager.downloadProgress
 
     val playbackState = playerManager.playbackState
 
@@ -145,21 +148,31 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    private fun getExportPrefix(): String {
+        return when (selectedTab.value) {
+            LibraryTab.LIKED -> "Liked_Songs"
+            LibraryTab.DOWNLOADS -> "Downloaded_Songs"
+            LibraryTab.HISTORY -> "History_Songs"
+            LibraryTab.ALL -> "Library_All_Songs"
+            LibraryTab.PLAYLISTS -> "Playlists"
+        }
+    }
+
     fun exportFilteredM3u() {
         val list = filteredTracks.value
         val content = TrackExporter.toM3u(list)
-        TrackExporter.shareExport(context, "m3u", content, "audio/x-mpegurl")
+        TrackExporter.shareExport(context, "m3u", content, "audio/x-mpegurl", getExportPrefix())
     }
 
     fun exportFilteredCsv() {
         val list = filteredTracks.value
         val content = TrackExporter.toCsv(list)
-        TrackExporter.shareExport(context, "csv", content, "text/csv")
+        TrackExporter.shareExport(context, "csv", content, "text/csv", getExportPrefix())
     }
 
     fun exportFilteredJson() {
         val list = filteredTracks.value
         val content = TrackExporter.toJson(list)
-        TrackExporter.shareExport(context, "json", content, "application/json")
+        TrackExporter.shareExport(context, "json", content, "application/json", getExportPrefix())
     }
 }

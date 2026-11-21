@@ -51,6 +51,7 @@ fun AboutDialog(
     onOpenThemeSelector: (() -> Unit)? = null
 ) {
     val updates = listOf(
+        "Real-Time Song Download ETA & Speed" to "Live download estimated time to finish (ETA), transfer speed (MB/s), and progress bytes in both notification bar and app (Now Playing & Downloads tab).",
         "Real-Time Song Mapping ETA & CSV Folder Import" to "Live estimated time to finish (ETA), mapping speed (songs/sec), and percentage progress when importing playlist links or CSVs. Choose individual CSV files or an entire folder of CSV playlists.",
         "Selectable App Theme Colors" to "Choose your style: Classic SkullBeat, Cyber Cyan, Sapphire Blue, Matrix Green, Neon Violet, Crimson Skull, or Sunset Gold. Shown on first startup and selectable anytime from Home, Library, or Settings.",
         "Downloads, Instant Offline Replay & Cancel" to "Dedicated Downloads library tab. Cancel downloads anytime from notification or app. 64KB high-speed download buffers. Instant offline playback anywhere in the app with zero internet and zero disk lag. Missing storage detection in Warning Yellow.",
@@ -113,7 +114,7 @@ fun AboutDialog(
                                 color = TextBone
                             )
                             Text(
-                                text = "Version 1.3.1 (Build 14)",
+                                text = "Version 1.3.2 (Build 15)",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

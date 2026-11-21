@@ -119,8 +119,17 @@ fun NowPlayingSheet(
         )
     }
     val activeDownloads by downloadManager.activeDownloads.collectAsState()
+    val downloadProgress by downloadManager.downloadProgress.collectAsState()
     val isDownloading = activeDownloads.contains(track.videoId)
     val isDownloaded = downloadManager.isDownloaded(track.videoId)
+    val currentProgressInfo = downloadProgress[track.videoId]
+    val downloadEtaLabel = currentProgressInfo?.let {
+        if (it.formattedEta.isNotBlank() && it.formattedEta != "Done") {
+            "Cancel (~${it.formattedEta})"
+        } else {
+            "Cancel"
+        }
+    }
 
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
@@ -329,6 +338,7 @@ fun NowPlayingSheet(
                         BottomActionsRow(
                             isDownloading = isDownloading,
                             isDownloaded = isDownloaded,
+                            downloadLabel = downloadEtaLabel ?: "Cancel",
                             onDownload = { onDownload(track) },
                             onOpenLyrics = { onOpenLyrics(track) },
                             onOpenQueue = { showQueueSheet = true }
@@ -415,6 +425,7 @@ fun NowPlayingSheet(
                     BottomActionsRow(
                         isDownloading = isDownloading,
                         isDownloaded = isDownloaded,
+                        downloadLabel = downloadEtaLabel ?: "Cancel",
                         onDownload = { onDownload(track) },
                         onOpenLyrics = { onOpenLyrics(track) },
                         onOpenQueue = { showQueueSheet = true }
@@ -872,6 +883,7 @@ private fun LoopControlButton(
 private fun BottomActionsRow(
     isDownloading: Boolean,
     isDownloaded: Boolean,
+    downloadLabel: String = "Cancel",
     onDownload: () -> Unit,
     onOpenLyrics: () -> Unit,
     onOpenQueue: () -> Unit,
@@ -891,7 +903,7 @@ private fun BottomActionsRow(
                 else -> Icons.Default.Download
             },
             label = when {
-                isDownloading -> "Cancel"
+                isDownloading -> downloadLabel
                 isDownloaded -> "Saved"
                 else -> "Download"
             },

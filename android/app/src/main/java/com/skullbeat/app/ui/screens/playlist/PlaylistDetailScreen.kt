@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.skullbeat.app.domain.models.Track
+import com.skullbeat.app.domain.util.TrackExporter
 import com.skullbeat.app.ui.components.TrackListItem
 import com.skullbeat.app.ui.theme.CyanAccent
 import com.skullbeat.app.ui.theme.ElectricBlue
@@ -198,6 +199,31 @@ fun PlaylistDetailScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Export Playlist CSV button (metadata only, zero audio download)
+                IconButton(
+                    onClick = {
+                        if (tracks.isEmpty()) {
+                            Toast.makeText(context, "No tracks in playlist to export", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val content = TrackExporter.toCsv(tracks)
+                            val name = playlist?.name?.ifBlank { "Playlist" } ?: "Playlist"
+                            TrackExporter.shareExport(context, "csv", content, "text/csv", name)
+                            Toast.makeText(context, "Exporting $name CSV (Metadata only)", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(RaisedDark)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = "Export Playlist CSV",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
                 // Edit Playlist button
                 IconButton(
                     onClick = {
